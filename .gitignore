@@ -1,0 +1,16 @@
+# Data files (jangan commit data partisipan)
+*.csv
+*.json
+!vercel.json
+!presets/*.json
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Local server
+.vercel

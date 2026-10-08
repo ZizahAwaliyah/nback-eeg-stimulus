@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>N-Back EEG Stimulus Platform</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ================================================================ -->
+  <!-- LAYAR 1: SETUP                                                     -->
+  <!-- ================================================================ -->
+  <section id="screen-setup" class="screen active">
+    <div class="container">
+      <h1>N-Back EEG Stimulus Platform</h1>
+      <p class="subtitle">Platform stimulus untuk penelitian EEG berbasis N-back</p>
+
+      <div class="card">
+        <h2>1. Pilih Preset Peneliti</h2>
+        <label>
+          Preset:
+          <select id="preset-select">
+            <option value="custom">Custom (isi manual)</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="card">
+        <h2>2. Identitas Sesi</h2>
+        <div class="grid-2">
+          <label>
+            Kode Partisipan:
+            <input type="text" id="participant-id" placeholder="Contoh: P01" required>
+          </label>
+          <label>
+            Sesi:
+            <select id="session">
+              <option value="S1">Sesi 1</option>
+              <option value="S2">Sesi 2</option>
+            </select>
+          </label>
+          <label>
+            Kondisi Urutan:
+            <select id="condition">
+              <option value="menaik">Menaik (0→1→2)</option>
+              <option value="acak">Acak</option>
+            </select>
+          </label>
+          <label>
+            Nama Peneliti:
+            <input type="text" id="researcher-name" placeholder="Contoh: Azizah Awaliyah">
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>3. Parameter Eksperimen</h2>
+        <div class="grid-2">
+          <label>
+            Tingkat N (pisahkan koma):
+            <input type="text" id="n-levels" value="0,1,2" placeholder="0,1,2">
+          </label>
+          <label>
+            Durasi blok (menit):
+            <input type="number" id="block-duration" value="4" min="1" max="15">
+          </label>
+          <label>
+            ISI (ms):
+            <input type="number" id="isi" value="2000" min="1000" max="5000" step="100">
+          </label>
+          <label>
+            Durasi stimulus tampil (ms):
+            <input type="number" id="stim-duration" value="500" min="200" max="2000" step="50">
+          </label>
+          <label>
+            Rasio target (0-1):
+            <input type="number" id="target-ratio" value="0.25" min="0.1" max="0.5" step="0.05">
+          </label>
+          <label>
+            Jenis stimulus:
+            <select id="stimulus-type">
+              <option value="letters">Huruf (B,D,F,G,H,J,K,L)</option>
+              <option value="digits">Angka (1-8)</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>4. Opsi Tambahan</h2>
+        <label class="toggle">
+          <input type="checkbox" id="enable-fatigue" checked>
+          <span>Aktifkan skala kelelahan KSS (1-9) sebelum &amp; sesudah tiap blok</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="enable-practice" checked>
+          <span>Aktifkan latihan 5 trial per tingkat N (hanya sesi pertama)</span>
+        </label>
+      </div>
+
+      <button id="btn-start" class="btn-primary">Mulai Eksperimen →</button>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- LAYAR 2: INSTRUKSI + QUICK TIPS                                   -->
+  <!-- ================================================================ -->
+  <section id="screen-instructions" class="screen">
+    <div class="container">
+      <h1>Instruksi Tugas</h1>
+      <div class="card instruction-card">
+        <h2>Cara Mengerjakan Tugas <span id="current-n-display"></span>-back</h2>
+        <div id="instructions-body"></div>
+        <div class="key-hint">
+          <div class="key-box">SPASI</div>
+          <p>Tekan tombol <strong>SPASI</strong> ketika stimulus sekarang <strong>cocok</strong> dengan yang <span id="n-back-word"></span>.</p>
+        </div>
+        <p class="warning">Kalau tidak cocok, <strong>jangan tekan apa-apa</strong> dan tunggu stimulus berikutnya.</p>
+      </div>
+
+      <div class="card tips-card" id="tips-body">
+        <!-- diisi oleh buildInstructions() -->
+      </div>
+
+      <div class="progress-info">
+        Blok <span id="block-current">1</span> dari <span id="block-total">3</span>
+      </div>
+      <button id="btn-continue-to-practice-or-fatigue" class="btn-primary">Lanjut →</button>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- LAYAR 2b: PRACTICE INTRO                                          -->
+  <!-- ================================================================ -->
+  <section id="screen-practice-intro" class="screen">
+    <div class="container">
+      <h1>Sesi Latihan</h1>
+      <div class="card">
+        <h2>Latihan <span id="practice-intro-n"></span>-back</h2>
+        <p>Sebelum perekaman sebenarnya, Anda akan menjalani <strong><span id="practice-intro-trials">5</span> trial latihan</strong> singkat.</p>
+        <p>Latihan ini membantu Anda memahami ritme tugas. <strong>Data latihan tidak dicatat</strong> untuk analisis.</p>
+        <p class="note">💡 Tenang saja, latihan ini bebas tekanan. Fokus pada memahami tugas, bukan performa.</p>
+      </div>
+      <div class="btn-group">
+        <button id="btn-start-practice" class="btn-primary">Mulai Latihan →</button>
+        <button id="btn-skip-practice" class="btn-secondary">Lewati Latihan</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- LAYAR 2c: PRACTICE DONE                                           -->
+  <!-- ================================================================ -->
+  <section id="screen-practice-done" class="screen">
+    <div class="container">
+      <h1>Latihan Selesai!</h1>
+      <div class="card">
+        <p>Bagus! Anda sudah merasakan ritme tugas.</p>
+        <p>Sekarang kita akan mulai <strong>perekaman sebenarnya</strong>. Fokus dan nikmati prosesnya.</p>
+      </div>
+      <button id="btn-continue-to-real-block" class="btn-primary">Lanjut ke Perekaman →</button>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- LAYAR 3: SKALA KELELAHAN                                          -->
+  <!-- ================================================================ -->
+  <section id="screen-fatigue" class="screen">
+    <div class="container">
+      <h1 id="fatigue-title">Skala Kelelahan Subjektif</h1>
+      <p class="subtitle">Karolinska Sleepiness Scale (KSS)</p>
+      <div class="card">
+        <p><strong>Seberapa mengantuk atau lelah Anda saat ini?</strong></p>
+        <div class="kss-scale">
+          <div class="kss-option" data-value="1"><span>1</span>Sangat segar</div>
+          <div class="kss-option" data-value="2"><span>2</span>Segar</div>
+          <div class="kss-option" data-value="3"><span>3</span>Cukup segar</div>
+          <div class="kss-option" data-value="4"><span>4</span>Agak segar</div>
+          <div class="kss-option" data-value="5"><span>5</span>Netral</div>
+          <div class="kss-option" data-value="6"><span>6</span>Agak lelah</div>
+          <div class="kss-option" data-value="7"><span>7</span>Lelah, masih bisa fokus</div>
+          <div class="kss-option" data-value="8"><span>8</span>Sangat lelah, sulit fokus</div>
+          <div class="kss-option" data-value="9"><span>9</span>Mengantuk berat, hampir tertidur</div>
+        </div>
+      </div>
+      <button id="btn-fatigue-continue" class="btn-primary" disabled>Lanjut →</button>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- LAYAR 4: COUNTDOWN                                                -->
+  <!-- ================================================================ -->
+  <section id="screen-countdown" class="screen">
+    <div class="container countdown-container">
+      <div class="marker-info">
+        <p><strong>PENANDA WAKTU MULAI</strong></p>
+        <p>Tap tombol Marker di Mind Monitor bersamaan dengan angka <strong>1</strong></p>
+      </div>
+      <div id="countdown-display" class="countdown-number">3</div>
+      <p class="countdown-label">Blok akan mulai dalam...</p>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- LAYAR 5: BLOK EKSPERIMEN                                          -->
+  <!-- ================================================================ -->
+  <section id="screen-block" class="screen">
+    <div class="block-header">
+      <div class="block-info">
+        Blok <span id="block-info-n"></span>-back
+        <span class="separator">·</span>
+        <span id="block-info-timer">05:00</span>
+        <span class="separator">·</span>
+        Trial <span id="block-info-trial">0</span>/<span id="block-info-total">0</span>
+      </div>
+    </div>
+    <div class="stimulus-container">
+      <div id="stimulus-display" class="stimulus"></div>
+    </div>
+    <div class="block-footer">
+      <p>Tekan tombol di bawah jika cocok dengan <span id="block-n-back-display"></span></p>
+      <div id="key-indicator" class="key-indicator">SPASI</div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- LAYAR 5b: BLOCK SUMMARY (ANTAR BLOK)                              -->
+  <!-- ================================================================ -->
+  <section id="screen-block-summary" class="screen">
+    <div class="container">
+      <h1 id="block-summary-title">Blok Selesai!</h1>
+      <div class="card">
+        <h2>Ringkasan Kinerja Blok</h2>
+        <div id="block-summary-content"></div>
+      </div>
+      <button id="btn-continue-from-block-summary" class="btn-primary">Lanjut →</button>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- LAYAR 6: HASIL AKHIR                                              -->
+  <!-- ================================================================ -->
+  <section id="screen-finished" class="screen">
+    <div class="container">
+      <h1>Sesi Selesai!</h1>
+      <p class="subtitle">Terima kasih atas partisipasi Anda</p>
+
+      <div class="card">
+        <h2>Ringkasan Kinerja Keseluruhan</h2>
+        <div id="summary-content"></div>
+      </div>
+
+      <div class="card">
+        <h2>⚠️ Ekspor Data (WAJIB download sebelum menutup)</h2>
+        <p>Klik tombol di bawah untuk mengunduh file CSV log respons dan JSON backup.</p>
+        <div class="btn-group">
+          <button id="btn-download-csv" class="btn-primary">📥 Download CSV</button>
+          <button id="btn-download-json" class="btn-secondary">📥 Download JSON (backup)</button>
+        </div>
+        <p class="note">Simpan dengan aman. Nama file: <code>{partisipan}_{sesi}_{kondisi}_{tanggal}.csv</code></p>
+      </div>
+
+      <button id="btn-new-session" class="btn-secondary">Mulai Sesi Baru</button>
+    </div>
+  </section>
+
+  <!-- SCRIPTS - urut: utils dulu, lalu modul yg bergantung -->
+  <script src="js/time-utils.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/stimulus.js"></script>
+  <script src="js/logger.js"></script>
+  <script src="js/experiment.js"></script>
+  <script src="js/main.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "researcher": "Azizah Awaliyah",
+  "n_levels": [0, 1, 2],
+  "block_duration_minutes": 4,
+  "isi_ms": 2000,
+  "stimulus_duration_ms": 500,
+  "target_ratio": 0.25,
+  "stimulus_type": "letters",
+  "enable_fatigue_scale": true,
+  "enable_practice": true,
+  "practice_trials": 5
+}

@@ -1,0 +1,10 @@
+{
+  "researcher": "Nama Peneliti",
+  "n_levels": [1, 2, 3],
+  "block_duration_minutes": 5,
+  "isi_ms": 2500,
+  "stimulus_duration_ms": 500,
+  "target_ratio": 0.25,
+  "stimulus_type": "letters",
+  "enable_fatigue_scale": false
+}
