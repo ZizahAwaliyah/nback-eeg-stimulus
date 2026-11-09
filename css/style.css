@@ -78,6 +78,7 @@ label {
 
 input[type="text"],
 input[type="number"],
+input[type="url"],
 select {
   width: 100%;
   padding: 10px 12px;
@@ -151,7 +152,7 @@ input:focus, select:focus {
 
 .btn-secondary:hover { background: var(--bg); }
 
-.btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0; }
+.btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0; align-items: center; }
 
 /* Pulse animation untuk tombol download */
 .btn-pulse {
@@ -213,6 +214,7 @@ input:focus, select:focus {
   border-left: 4px solid var(--warning);
   padding: 12px 16px;
   border-radius: 4px;
+  margin-top: 12px;
 }
 
 /* Quick Tips Card */
@@ -242,6 +244,56 @@ input:focus, select:focus {
   color: var(--text-muted);
   margin: 20px 0;
   font-size: 0.95rem;
+}
+
+/* ============ KOTAK 3x3 (MODE POSISI) ============ */
+
+.grid-3x3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 12px;
+  width: min(52vh, 420px);
+  height: min(52vh, 420px);
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.grid-3x3.hidden { visibility: hidden; }
+
+.grid-cell {
+  background: white;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  transition: background 0.05s linear, border-color 0.05s linear;
+}
+
+.grid-cell.active {
+  background: var(--primary);
+  border-color: var(--primary-dark);
+}
+
+/* Area kotak boleh diklik/di-tap sebagai respons saat blok berjalan */
+.grid-3x3.clickable { cursor: pointer; }
+
+/* Pratinjau target 0-back di layar instruksi */
+.target-grid-wrapper { display: flex; justify-content: center; margin: 20px 0; }
+
+.grid-3x3.grid-preview {
+  width: 170px;
+  height: 170px;
+  gap: 8px;
+}
+
+.grid-preview .grid-cell {
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 7px;
+}
+
+.grid-preview .grid-cell.active {
+  background: var(--primary);
+  border-color: var(--primary-dark);
 }
 
 /* ============ KSS FATIGUE SCALE ============ */
@@ -492,4 +544,34 @@ input:focus, select:focus {
   border-radius: 3px;
   font-family: 'SF Mono', Monaco, monospace;
   font-size: 0.8rem;
+}
+
+/* ============ HASIL AKHIR: TABEL & DAFTAR DOKUMENTASI ============ */
+
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.summary-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.summary-table td:first-child { color: var(--text-muted); }
+.summary-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+.doc-list {
+  margin: 12px 0 0 20px;
+  font-size: 0.9rem;
+}
+
+.doc-list li { margin-bottom: 10px; line-height: 1.45; }
+.doc-list a { color: var(--primary); word-break: break-all; }
+
+.input-error {
+  border-color: #e53e3e !important;
+  box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.25) !important;
+  outline: none !important;
 }

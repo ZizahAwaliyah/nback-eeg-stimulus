@@ -30,8 +30,8 @@
         <h2>2. Identitas Sesi</h2>
         <div class="grid-2">
           <label>
-            Kode Partisipan:
-            <input type="text" id="participant-id" placeholder="Contoh: P01" required>
+            Nama Partisipan:
+            <input type="text" id="participant-name" placeholder="Contoh: Budi Santoso" required>
           </label>
           <label>
             Sesi:
@@ -43,13 +43,17 @@
           <label>
             Kondisi Urutan:
             <select id="condition">
-              <option value="menaik">Menaik (0→1→2)</option>
+              <option value="menaik">Menaik (1→2→3)</option>
               <option value="acak">Acak</option>
             </select>
           </label>
           <label>
             Nama Peneliti:
-            <input type="text" id="researcher-name" placeholder="Contoh: Azizah Awaliyah">
+            <input type="text" id="researcher-name" placeholder="Contoh: Mutiah Arinil">
+          </label>
+          <label>
+            Kunjungan ke- (untuk nama folder dokumentasi):
+            <input type="number" id="visit-number" value="1" min="1" max="20">
           </label>
         </div>
       </div>
@@ -59,7 +63,7 @@
         <div class="grid-2">
           <label>
             Tingkat N (pisahkan koma):
-            <input type="text" id="n-levels" value="0,1,2" placeholder="0,1,2">
+            <input type="text" id="n-levels" value="1,2,3" placeholder="1,2,3">
           </label>
           <label>
             Durasi blok (menit):
@@ -67,38 +71,55 @@
           </label>
           <label>
             ISI (ms):
-            <input type="number" id="isi" value="2000" min="1000" max="5000" step="100">
+            <input type="number" id="isi" value="2000" min="500" max="5000" step="100">
           </label>
           <label>
             Durasi stimulus tampil (ms):
-            <input type="number" id="stim-duration" value="500" min="200" max="2000" step="50">
+            <input type="number" id="stim-duration" value="500" min="100" max="2000" step="50">
           </label>
           <label>
             Rasio target (0-1):
-            <input type="number" id="target-ratio" value="0.25" min="0.1" max="0.5" step="0.05">
+            <input type="number" id="target-ratio" value="0.25" min="0.05" max="0.8" step="0.05">
           </label>
           <label>
             Jenis stimulus:
             <select id="stimulus-type">
+              <option value="grid3x3">Kotak 3x3 (posisi)</option>
               <option value="letters">Huruf (B,D,F,G,H,J,K,L)</option>
               <option value="digits">Angka (1-8)</option>
             </select>
           </label>
+        </div>
+
+        <div id="grid-hint" class="note">
+          Mode kotak 3x3: satu sel menyala tiap trial. Partisipan menekan <strong>SPASI</strong>
+          (atau mengklik/menyentuh layar) kalau posisi sel sama dengan posisi N langkah sebelumnya.
+          Untuk 0-back (ground truth baseline), partisipan menekan SPASI saat kotak tengah menyala.
+          Kolom <code>stimulus</code> di CSV berisi posisi sel, contoh <code>r2c2</code> (kotak tengah) atau <code>r2c3</code>.
         </div>
       </div>
 
       <div class="card">
         <h2>4. Opsi Tambahan</h2>
         <label class="toggle">
-          <input type="checkbox" id="enable-fatigue" checked>
+          <input type="checkbox" id="enable-fatigue">
           <span>Aktifkan skala kelelahan KSS (1-9) sebelum &amp; sesudah tiap blok</span>
         </label>
         <label class="toggle">
           <input type="checkbox" id="enable-practice" checked>
-          <span>Aktifkan latihan 5 trial per tingkat N (hanya sesi pertama)</span>
+          <span>Aktifkan latihan (jumlah trial sama dengan blok sebenarnya, data latihan tidak dicatat)</span>
+        </label>
+        <label class="toggle" id="row-randomize-layout">
+          <input type="checkbox" id="randomize-layout">
+          <span>Acak posisi kotak-kotak di layar (catatan: analisis wajib memakai urutan tampil)</span>
+        </label>
+        <label class="toggle" id="row-click-response">
+          <input type="checkbox" id="enable-click-response" checked>
+          <span>Izinkan partisipan menjawab dengan klik/sentuh layar, bukan hanya SPASI</span>
         </label>
       </div>
 
+      <div id="start-validation-error" class="warning" style="display:none; margin-bottom: 1.25rem; color: #c53030; background: #fff5f5; border-left-color: #e53e3e;"></div>
       <button id="btn-start" class="btn-primary">Mulai Eksperimen →</button>
     </div>
   </section>
@@ -138,9 +159,9 @@
       <h1>Sesi Latihan</h1>
       <div class="card">
         <h2>Latihan <span id="practice-intro-n"></span>-back</h2>
-        <p>Sebelum perekaman sebenarnya, Anda akan menjalani <strong><span id="practice-intro-trials">5</span> trial latihan</strong> singkat.</p>
-        <p>Latihan ini membantu Anda memahami ritme tugas. <strong>Data latihan tidak dicatat</strong> untuk analisis.</p>
-        <p class="note">💡 Tenang saja, latihan ini bebas tekanan. Fokus pada memahami tugas, bukan performa.</p>
+        <p>Ini pemanasan: <strong><span id="practice-intro-trials">120</span> trial</strong> dengan aturan main yang sama seperti blok sebenarnya.</p>
+        <p id="practice-note"></p>
+        <p class="note">💡 Latihan ini bebas tekanan. Fokus pada memahami ritme tugas, bukan performa.</p>
       </div>
       <div class="btn-group">
         <button id="btn-start-practice" class="btn-primary">Mulai Latihan →</button>
@@ -195,7 +216,7 @@
     <div class="container countdown-container">
       <div class="marker-info">
         <p><strong>PENANDA WAKTU MULAI</strong></p>
-        <p>Tap tombol Marker di Mind Monitor bersamaan dengan angka <strong>1</strong></p>
+        <p>Tekan tombol Marker di Mind Monitor bersamaan dengan angka <strong>1</strong></p>
       </div>
       <div id="countdown-display" class="countdown-number">3</div>
       <p class="countdown-label">Blok akan mulai dalam...</p>
@@ -216,10 +237,21 @@
       </div>
     </div>
     <div class="stimulus-container">
+      <div id="grid-3x3" class="grid-3x3 hidden">
+        <div class="grid-cell" data-row="1" data-col="1"></div>
+        <div class="grid-cell" data-row="1" data-col="2"></div>
+        <div class="grid-cell" data-row="1" data-col="3"></div>
+        <div class="grid-cell" data-row="2" data-col="1"></div>
+        <div class="grid-cell" data-row="2" data-col="2"></div>
+        <div class="grid-cell" data-row="2" data-col="3"></div>
+        <div class="grid-cell" data-row="3" data-col="1"></div>
+        <div class="grid-cell" data-row="3" data-col="2"></div>
+        <div class="grid-cell" data-row="3" data-col="3"></div>
+      </div>
       <div id="stimulus-display" class="stimulus"></div>
     </div>
     <div class="block-footer">
-      <p>Tekan tombol di bawah jika cocok dengan <span id="block-n-back-display"></span></p>
+      <p>Tekan SPASI (atau klik/sentuh layar) jika posisinya cocok dengan <span id="block-n-back-display"></span></p>
       <div id="key-indicator" class="key-indicator">SPASI</div>
     </div>
   </section>
@@ -239,6 +271,27 @@
   </section>
 
   <!-- ================================================================ -->
+  <!-- LAYAR 5c: CEK RESPONS (kalau blok tidak merekam respons sama sekali) -->
+  <!-- ================================================================ -->
+  <section id="screen-response-check" class="screen">
+    <div class="container">
+      <h1>Periksa Blok Ini</h1>
+      <div class="card">
+        <div id="response-check-body"></div>
+        <label>
+          Pilihan:
+          <select id="response-check-choice">
+            <option value="ulang">Ulangi blok ini sekarang (data blok ini dibuang)</option>
+            <option value="lanjut">Lanjutkan dan simpan apa adanya (respons kosong)</option>
+            <option value="berhenti">Lanjut tanpa mengulang (sama seperti lanjut)</option>
+          </select>
+        </label>
+      </div>
+      <button id="btn-continue-after-response-check" class="btn-primary">Lanjut →</button>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
   <!-- LAYAR 6: HASIL AKHIR                                              -->
   <!-- ================================================================ -->
   <section id="screen-finished" class="screen">
@@ -252,20 +305,53 @@
       </div>
 
       <div class="card">
-        <h2>⚠️ Ekspor Data (WAJIB download sebelum menutup)</h2>
-        <p>Klik tombol di bawah untuk mengunduh file CSV log respons dan JSON backup.</p>
+        <h2>⚠️ Ekspor Data (WAJIB sebelum menutup halaman)</h2>
+        <p>Klik tombol di bawah untuk mengunduh CSV log respons, JSON backup, dan laporan sesi.</p>
         <div class="btn-group">
           <button id="btn-download-csv" class="btn-primary">📥 Download CSV</button>
           <button id="btn-download-json" class="btn-secondary">📥 Download JSON (backup)</button>
+          <button id="btn-download-report" class="btn-secondary">📥 Download Laporan</button>
         </div>
-        <p class="note">Simpan dengan aman. Nama file: <code>{partisipan}_{sesi}_{kondisi}_{tanggal}.csv</code></p>
+        <p class="note">Nama file: <code>{nama partisipan}_{sesi}_{kondisi}_{tanggal}.csv</code></p>
+      </div>
+
+      <div class="card">
+        <h2>Selesai &amp; Dokumentasi</h2>
+        <p>Selesaikan dua langkah ini sebelum memulai sesi berikutnya:</p>
+        <div class="btn-group">
+          <button id="btn-finish-session" class="btn-primary">Selesaikan Sesi &amp; Simpan Berkas</button>
+        </div>
+        <p class="note">Tombol ini membuat folder dokumentasi otomatis (nama folder:
+        <code id="doc-folder-name">-</code>) berisi CSV, JSON, laporan, dan checklist berkas.</p>
+        <p class="note">Daftar berkas yang dikumpulkan tiap sesi:</p>
+        <ul id="doc-list" class="doc-list"></ul>
+        <button id="btn-fill-documentation" class="btn-secondary">Perbarui Daftar Dokumentasi</button>
       </div>
 
       <button id="btn-new-session" class="btn-secondary">Mulai Sesi Baru</button>
     </div>
   </section>
 
-  <!-- SCRIPTS - urut: utils dulu, lalu modul yg bergantung -->
+  <!-- ================================================================ -->
+  <!-- LAYAR 7: HASIL PENYIMPANAN DOKUMENTASI                            -->
+  <!-- ================================================================ -->
+  <section id="screen-documentation" class="screen">
+    <div class="container">
+      <h1>Dokumentasi Sesi</h1>
+      <div class="card">
+        <h2>Folder: <span id="doc-folder-name-2"></span></h2>
+        <p id="doc-save-status" class="note"></p>
+        <p>Cari folder tersebut di komputer (lokasi yang dipilih saat menyimpan), lalu tambahkan berkas
+        dari Mind Monitor ke dalam folder yang sama.</p>
+        <ul id="doc-list-2" class="doc-list"></ul>
+      </div>
+      <div class="btn-group">
+        <button id="btn-back-to-result" class="btn-primary">← Kembali ke Ringkasan Sesi</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCRIPTS - urut: utils dulu, lalu modul yang bergantung padanya -->
   <script src="js/time-utils.js"></script>
   <script src="js/config.js"></script>
   <script src="js/stimulus.js"></script>

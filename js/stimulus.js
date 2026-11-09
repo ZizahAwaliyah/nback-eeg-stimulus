@@ -1,7 +1,36 @@
 // ================================================================
 // stimulus.js — Generate stimulus sequence untuk tiap blok
 // ================================================================
-// Perubahan: target letter 0-back BISA DIKUSTOMISASI (bukan selalu pool[0])
+// Dua jenis stimulus:
+//   - letters / digits : satu karakter per trial (B, D, ... / 1-8)
+//   - grid3x3          : kotak 3x3, satu sel menyala per trial ("r2c3")
+//
+// ATURAN PENTING (dipilih peneliti): TIDAK ADA kemunculan "kebetulan sama"
+// yang bukan target. Kalau posisi sekarang sama dengan n langkah lalu,
+// trial itu PASTI target (partisipan wajib menekan SPASI).
+
+const GRID_SIZE = 3;
+
+/**
+ * Semua sel grid 3x3 dalam format "r{baris}c{kolom}", baris/kolom 1-3.
+ * Urutan baris demi baris: r1c1..r1c3, r2c1..r2c3, r3c1..r3c3.
+ */
+function buildGridCells(size = GRID_SIZE) {
+  const cells = [];
+  for (let r = 1; r <= size; r++) {
+    for (let c = 1; c <= size; c++) {
+      cells.push(`r${r}c${c}`);
+    }
+  }
+  return cells;
+}
+
+/** Ambil {row, col} dari kode sel "r2c3". Null kalau bukan format sel. */
+function parseCell(code) {
+  const m = /^r(\d+)c(\d+)$/.exec(code || "");
+  if (!m) return null;
+  return { row: parseInt(m[1], 10), col: parseInt(m[2], 10) };
+}
 
 /**
  * Generate sequence of stimuli untuk 1 blok n-back
@@ -10,14 +39,17 @@
  * @param {number} totalTrials - total trial dalam blok
  * @param {number} targetRatio - proporsi target (0-1)
  * @param {string[]} pool - kumpulan stimulus yang tersedia
- * @param {string|null} targetLetter - untuk 0-back: huruf target (kalau null, pakai pool[0])
+ * @param {string|null} targetStim - untuk 0-back: stimulus target tetap
+ *                                   (huruf / angka / kode sel). null = pool[0].
  * @returns {Array<{stimulus, isTarget, n_level, trial_index}>}
  */
-function generateSequence(n, totalTrials, targetRatio, pool, targetLetter = null) {
+function generateSequence(n, totalTrials, targetRatio, pool, targetStim = null) {
   const sequence = [];
   const numTargets = Math.round(totalTrials * targetRatio);
-  const target0 = targetLetter || pool[0];
+  const target0 = targetStim || (pool.includes("r2c2") ? "r2c2" : pool[0]);
 
+  // Posisi target diacak; n trial pertama tidak boleh jadi target karena
+  // belum punya "n langkah sebelumnya" untuk dibandingkan.
   const eligiblePositions = [];
   const minPosition = n === 0 ? 0 : n;
   for (let i = minPosition; i < totalTrials; i++) {
@@ -31,6 +63,7 @@ function generateSequence(n, totalTrials, targetRatio, pool, targetLetter = null
     const isTarget = targetPositions.has(i);
 
     if (n === 0) {
+      // 0-back: target = stimulus tetap, lainnya = apa pun selain target
       if (isTarget) {
         stimulus = target0;
       } else {
@@ -38,11 +71,12 @@ function generateSequence(n, totalTrials, targetRatio, pool, targetLetter = null
         stimulus = nonTargets[Math.floor(Math.random() * nonTargets.length)];
       }
     } else {
-      if (isTarget && sequence[i - n]) {
-        stimulus = sequence[i - n].stimulus;
+      const prev = sequence[i - n] ? sequence[i - n].stimulus : null;
+      if (isTarget && prev) {
+        stimulus = prev;
       } else {
-        const forbidden = sequence[i - n] ? sequence[i - n].stimulus : null;
-        const available = pool.filter((s) => s !== forbidden);
+        // Non-target WAJIB beda dari n langkah lalu (aturan anti false-target)
+        const available = prev ? pool.filter((s) => s !== prev) : pool.slice();
         stimulus = available[Math.floor(Math.random() * available.length)];
       }
     }
@@ -57,6 +91,9 @@ function generateSequence(n, totalTrials, targetRatio, pool, targetLetter = null
 
   return sequence;
 }
+
+/** @alias — nama alternatif, tetap kompatibel dengan pemanggilan lama */
+const generateGridSequence = generateSequence;
 
 /**
  * Rencana urutan blok berdasarkan kondisi eksperimen
@@ -86,8 +123,12 @@ function calculateTrialCount(blockDurationMinutes, isiMs) {
 }
 
 /**
- * Pilih huruf target 0-back secara acak dari pool
+ * Pilih stimulus target 0-back secara acak dari pool
+ * (huruf/angka: acak dari pool; grid 3x3: acak dari 9 sel)
  */
-function randomTargetLetter(pool) {
+function randomTargetStimulus(pool) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
+/** @alias — nama lama */
+const randomTargetLetter = randomTargetStimulus;

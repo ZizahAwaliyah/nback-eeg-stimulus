@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tugas N-Back 3×3 - N-Back EEG Stimulus Platform</title>
+  <style>
+    :root {
+      --bg-page: #f8fafc;
+      --card-bg: #ffffff;
+      --border-color: #e2e8f0;
+      --border-subtle: #cbd5e1;
+      --primary-blue: #0284c7;
+      --primary-blue-hover: #0369a1;
+      --btn-match: #475569;
+      --btn-match-hover: #334155;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --grid-bg: #f1f5f9;
+      --correct-green: #16a34a;
+      --incorrect-red: #dc2626;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-bottom: 50px;
+    }
+
+    /* Template Header standar stimulus platform */
+    .app-header {
+      width: 100%;
+      background: #ffffff;
+      border-bottom: 1px solid var(--border-color);
+      padding: 12px 28px;
+      display: flex;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+
+    .header-container {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .app-title {
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .separator {
+      color: var(--border-subtle);
+      font-weight: 400;
+    }
+
+    /* Badge blok aktif non-klik */
+    .block-badge {
+      background: #e0f2fe;
+      color: #0369a1;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      border: 1px solid #bae6fd;
+      letter-spacing: 0.3px;
+    }
+
+    .header-meta {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .header-btn {
+      text-decoration: none;
+      color: #475569;
+      background: #f1f5f9;
+      border: 1px solid var(--border-color);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: background 0.15s ease;
+    }
+
+    .header-btn:hover {
+      background: #e2e8f0;
+      color: var(--text-main);
+    }
+
+    /* Main Card */
+    .card-container {
+      width: 100%;
+      max-width: 580px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 32px 36px;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+      position: relative;
+      margin: 0 16px;
+    }
+
+    .card-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .training-title {
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+
+    .mode-phase-badge {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 3px 12px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .badge-tutorial {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+
+    .badge-groundtruth {
+      background: #f0fdf4;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+
+    .badge-test {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
+    /* Explanation Box */
+    .tutorial-explanation-box {
+      margin-top: 14px;
+      padding: 16px 20px;
+      background: #f8fafc;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      text-align: left;
+      font-size: 0.92rem;
+      line-height: 1.6;
+      color: #334155;
+    }
+
+    .tutorial-explanation-box p {
+      margin-bottom: 8px;
+    }
+
+    .tutorial-explanation-box p:last-child {
+      margin-bottom: 0;
+    }
+
+    .target-preview-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 12px 0;
+      gap: 6px;
+    }
+
+    .grid-preview-mini {
+      display: grid;
+      grid-template-columns: repeat(3, 34px);
+      grid-template-rows: repeat(3, 34px);
+      gap: 5px;
+      background: #f1f5f9;
+      padding: 8px;
+      border-radius: 10px;
+    }
+
+    .grid-preview-mini .mini-tile {
+      background: #ffffff;
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+    }
+
+    .grid-preview-mini .mini-tile.target-active {
+      background: var(--primary-blue);
+      border-color: #0369a1;
+    }
+
+    .kbd {
+      display: inline-block;
+      background: #ffffff;
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      padding: 1px 7px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-main);
+      box-shadow: 0 1px 1px rgba(0,0,0,0.05);
+    }
+
+    /* Progress & Score Bar */
+    .progress-section {
+      margin-top: 18px;
+      margin-bottom: 14px;
+      display: none;
+    }
+
+    .progress-section.visible {
+      display: block;
+    }
+
+    .progress-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--primary-blue);
+      width: 0%;
+      transition: width 0.2s ease;
+    }
+
+    /* 3x3 Board — Kotak outline SELALU tampak, hanya warna biru aktif yang padam saat jeda */
+    .board-wrapper {
+      display: flex;
+      justify-content: center;
+      margin: 20px 0 16px 0;
+    }
+
+    .board-container {
+      background: var(--grid-bg);
+      border-radius: 16px;
+      padding: 14px;
+      display: inline-block;
+      border: 1.5px solid var(--border-color);
+    }
+
+    .grid-3x3 {
+      display: grid;
+      grid-template-columns: repeat(3, 76px);
+      grid-template-rows: repeat(3, 76px);
+      gap: 10px;
+    }
+
+    .grid-tile {
+      background: #ffffff;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 14px;
+      transition: background 0.05s ease, border-color 0.05s ease, box-shadow 0.05s ease;
+      cursor: pointer;
+    }
+
+    /* Kotak yang sedang menyala biru saat stimulus aktif */
+    .grid-tile.active {
+      background: #0284c7 !important;
+      border-color: #0369a1 !important;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+    }
+
+    /* Feedback Display */
+    .feedback-area {
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .feedback-correct {
+      color: var(--correct-green);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .feedback-incorrect {
+      color: var(--incorrect-red);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Action Buttons */
+    .btn-row {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 28px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn-primary {
+      background: var(--primary-blue);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-blue-hover);
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #334155;
+    }
+
+    .btn-secondary:hover {
+      background: #cbd5e1;
+    }
+
+    .btn-match {
+      background: var(--btn-match);
+      color: #ffffff;
+      min-width: 180px;
+    }
+
+    .btn-match:hover {
+      background: var(--btn-match-hover);
+    }
+
+    .btn-success {
+      background: #16a34a;
+      color: #ffffff;
+    }
+
+    .btn-success:hover {
+      background: #15803d;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header Standar Stimulus Platform -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="header-brand">
+        <span class="app-title">N-Back EEG Stimulus Platform</span>
+        <span class="separator">•</span>
+        <!-- Menampilkan blok aktif secara otomatis sesuai urutan yang dipilih peneliti -->
+        <span id="header-block-badge" class="block-badge">Blok 1 dari 1 (1-Back)</span>
+      </div>
+      <div class="header-meta">
+        <span id="participant-meta" style="font-weight:600; color:#0369a1;">Partisipan: -</span>
+        <span class="separator">•</span>
+        <span>Trial: <strong id="header-trial">0</strong> / <span id="header-total">20</span></span>
+        <span class="separator">•</span>
+        <span>Stimulus: <strong id="header-stim-dur">500 ms</strong></span>
+        <span class="separator">•</span>
+        <a href="index.html" class="header-btn" title="Kembali ke formulir setting peneliti">⚙️ Pengaturan</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Card -->
+  <main class="card-container">
+    <div class="card-header">
+      <span id="badge-phase" class="mode-phase-badge badge-tutorial">Tutorial / Latihan</span>
+      <h1 id="title-mode" class="training-title">Tugas 1-Back</h1>
+
+      <!-- Bagian Penjelasan: HANYA MUNCUL DI TAHAP TUTORIAL / LATIHAN -->
+      <div id="tutorial-box" class="tutorial-explanation-box">
+        <div id="tutorial-text">
+          <!-- Diisi dinamis berdasarkan tingkat N aktif -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress & Score (Muncul saat tes berjalan) -->
+    <div id="progress-section" class="progress-section">
+      <div class="progress-labels">
+        <span id="label-progress">Progres: 0 / 20</span>
+        <span id="label-score">Akurasi: 0%</span>
+      </div>
+      <div class="progress-track">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
+    </div>
+
+    <!-- 3x3 Board — Kotak outline SELALU tetap ada -->
+    <div class="board-wrapper">
+      <div class="board-container">
+        <div id="grid-board" class="grid-3x3">
+          <div class="grid-tile" data-index="0" data-row="1" data-col="1"></div>
+          <div class="grid-tile" data-index="1" data-row="1" data-col="2"></div>
+          <div class="grid-tile" data-index="2" data-row="1" data-col="3"></div>
+          <div class="grid-tile" data-index="3" data-row="2" data-col="1"></div>
+          <div class="grid-tile" data-index="4" data-row="2" data-col="2"></div>
+          <div class="grid-tile" data-index="5" data-row="2" data-col="3"></div>
+          <div class="grid-tile" data-index="6" data-row="3" data-col="1"></div>
+          <div class="grid-tile" data-index="7" data-row="3" data-col="2"></div>
+          <div class="grid-tile" data-index="8" data-row="3" data-col="3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feedback (Benar / Salah) -->
+    <div class="feedback-area">
+      <div id="feedback-display"></div>
+    </div>
+
+    <!-- Tombol Aksi Tutorial -->
+    <div class="btn-row" id="tutorial-actions">
+      <button id="btn-start-practice" class="btn btn-secondary">▶ Coba Latihan (5 Trial)</button>
+      <button id="btn-start-real-test" class="btn btn-primary">Mulai Tes Asli (Clean) →</button>
+    </div>
+
+    <!-- Tombol Respons saat Tes Berjalan (Hanya Cocok SPASI) -->
+    <div class="btn-row" id="running-actions" style="display:none;">
+      <button id="btn-match" class="btn btn-match">Cocok! (SPASI)</button>
+    </div>
+  </main>
+
+  <!-- Script utilitas pencatatan & timing -->
+  <script src="js/time-utils.js"></script>
+  <script src="js/stimulus.js"></script>
+  <script src="js/logger.js"></script>
+
+  <script>
+    // Ambil konfigurasi dari localStorage jika ada
+    let activeConfig = null;
+    try {
+      const stored = localStorage.getItem("nback_eeg_config");
+      if (stored) {
+        activeConfig = JSON.parse(stored);
+      }
+    } catch (e) {
+      console.warn("Gagal membaca activeConfig:", e);
+    }
+
+    // Default konfigurasi jika tidak ditemukan
+    if (!activeConfig) {
+      activeConfig = {
+        researcher: "Peneliti",
+        participant_name: "Partisipan",
+        session: "S1",
+        condition: "menaik",
+        n_levels: [0, 1, 2, 3],
+        block_duration_minutes: 4,
+        isi_ms: 2000,
+        stimulus_duration_ms: 500,
+        target_ratio: 0.25,
+        stimulus_type: "grid3x3",
+        enable_click_response: true
+      };
+    }
+
+    // Susun urutan blok berdasarkan condition (menaik / acak)
+    let blockOrder = [];
+    if (typeof planBlockOrder === 'function') {
+      blockOrder = planBlockOrder(activeConfig.n_levels || [0, 1, 2, 3], activeConfig.condition || 'menaik');
+    } else {
+      blockOrder = [...(activeConfig.n_levels || [0, 1, 2, 3])];
+      if (activeConfig.condition === 'menaik') {
+        blockOrder.sort((a, b) => a - b);
+      }
+    }
+    if (!blockOrder.length) blockOrder = [0, 1, 2, 3];
+
+    let currentBlockIndex = 0;
+    let currentN = blockOrder[currentBlockIndex];
+
+    let currentPhase = 'tutorial'; // 'tutorial' | 'practice' | 'real_test'
+    let stimDurationMs = activeConfig.stimulus_duration_ms || 500;
+    let isiMs = activeConfig.isi_ms || 2000;
+    const practiceTrials = 5;
+
+    // Hitung total trials untuk blok riil
+    let totalTrials = 20;
+    if (activeConfig.block_duration_minutes && activeConfig.isi_ms) {
+      const calc = Math.round((activeConfig.block_duration_minutes * 60 * 1000) / activeConfig.isi_ms);
+      if (calc >= 10) totalTrials = calc;
+    }
+
+    const fixedTarget0Back = 4; // Kotak tengah (baris 2, kolom 2) untuk 0-Back ground truth
+
+    let isGameRunning = false;
+    let currentTrial = 0;
+    let sequence = [];
+    let gameTimer = null;
+    let stimulusTimeout = null;
+    let trialResponded = false;
+
+    // Timing & Logging
+    let currentTrialOnsetPerf = null;
+    let currentTrialOnsetLocal = null;
+    let currentTrialOnsetIso = null;
+    let currentResponseTs = null;
+    let currentReactionTimeMs = null;
+    let currentResponseSource = null;
+    let experimentLogger = new ExperimentLogger(activeConfig);
+
+    // Metrik performa
+    let hits = 0;
+    let falseAlarms = 0;
+    let misses = 0;
+    let correctRejections = 0;
+
+    const tiles = document.querySelectorAll('.grid-tile');
+    const titleMode = document.getElementById('title-mode');
+    const badgePhase = document.getElementById('badge-phase');
+    const tutorialBox = document.getElementById('tutorial-box');
+    const tutorialText = document.getElementById('tutorial-text');
+    const tutorialActions = document.getElementById('tutorial-actions');
+    const runningActions = document.getElementById('running-actions');
+    const btnStartPractice = document.getElementById('btn-start-practice');
+    const btnStartRealTest = document.getElementById('btn-start-real-test');
+    const btnMatch = document.getElementById('btn-match');
+    const feedbackDisplay = document.getElementById('feedback-display');
+    const progressSection = document.getElementById('progress-section');
+    const progressFill = document.getElementById('progress-fill');
+    const labelProgress = document.getElementById('label-progress');
+    const labelScore = document.getElementById('label-score');
+    const headerTrial = document.getElementById('header-trial');
+    const headerTotal = document.getElementById('header-total');
+    const headerStimDur = document.getElementById('header-stim-dur');
+    const participantMeta = document.getElementById('participant-meta');
+    const headerBlockBadge = document.getElementById('header-block-badge');
+
+    // Inisialisasi Header Meta
+    function setupHeader() {
+      if (participantMeta && activeConfig) {
+        participantMeta.textContent = `${activeConfig.participant_name} (${activeConfig.session})`;
+      }
+      if (headerStimDur) {
+        headerStimDur.textContent = `${stimDurationMs} ms`;
+      }
+      updateBlockBadge();
+    }
+
+    function updateBlockBadge() {
+      if (headerBlockBadge) {
+        const totalBlocks = blockOrder.length;
+        const blockNum = currentBlockIndex + 1;
+        const nLabel = currentN === 0 ? "0-Back (Ground Truth)" : `${currentN}-Back`;
+        headerBlockBadge.textContent = `Blok ${blockNum} dari ${totalBlocks} : ${nLabel}`;
+      }
+    }
+
+    // Inisialisasi tampilan instruksi per level
+    function updateInstructions() {
+      updateBlockBadge();
+
+      if (currentN === 0) {
+        titleMode.textContent = "Tugas 0-Back (Ground Truth Baseline)";
+        tutorialText.innerHTML = `
+          <p><strong style="color:#166534;">🎯 Baseline Ground Truth:</strong> Kotak Target adalah <strong>Kotak Tengah</strong> (Baris 2, Kolom 2).</p>
+          <div class="target-preview-wrapper">
+            <div class="grid-preview-mini">
+              <div class="mini-tile"></div><div class="mini-tile"></div><div class="mini-tile"></div>
+              <div class="mini-tile"></div><div class="mini-tile target-active"></div><div class="mini-tile"></div>
+              <div class="mini-tile"></div><div class="mini-tile"></div><div class="mini-tile"></div>
+            </div>
+            <span style="font-size:0.82rem; color:var(--text-muted);">Pratinjau Kotak Target 0-Back (Pusat)</span>
+          </div>
+          <p>Tekan tombol <span class="kbd">SPASI</span> (atau klik kotak) <strong>hanya jika kotak tengah tersebut menyala</strong>.</p>
+          <p style="color:#b91c1c;">Jika 8 kotak lainnya yang menyala, <strong>jangan tekan apa pun</strong> dan tunggu stimulus berikutnya.</p>
+        `;
+      } else {
+        titleMode.textContent = `Tugas ${currentN}-Back`;
+        tutorialText.innerHTML = `
+          <p>Anda akan melihat <strong>satu kotak biru menyala</strong> di dalam papan 3×3, posisinya berganti-ganti.</p>
+          <p>Tugas Anda: bandingkan posisi kotak sekarang dengan posisi <strong>${currentN} langkah sebelumnya</strong>.</p>
+          <p>Tekan tombol <span class="kbd">SPASI</span> (atau klik tombol Cocok) jika posisinya <strong>sama persis</strong> dengan ${currentN} langkah lalu.</p>
+          <p style="color:#b91c1c;">Jika posisinya berbeda, <strong>jangan tekan apa pun</strong> dan tunggu stimulus berikutnya.</p>
+        `;
+      }
+    }
+
+    // Mengatur fase tampilan (Tutorial vs Latihan vs Tes Asli Clean)
+    function setPhase(phase) {
+      currentPhase = phase;
+      stopGame();
+
+      if (phase === 'tutorial') {
+        badgePhase.textContent = currentN === 0 ? 'Ground Truth Baseline' : 'Tutorial / Latihan';
+        badgePhase.className = currentN === 0 ? 'mode-phase-badge badge-groundtruth' : 'mode-phase-badge badge-tutorial';
+        tutorialBox.style.display = 'block';
+        tutorialActions.style.display = 'flex';
+        runningActions.style.display = 'none';
+        progressSection.classList.remove('visible');
+        feedbackDisplay.innerHTML = '';
+        headerTrial.textContent = '0';
+        headerTotal.textContent = totalTrials;
+      } else if (phase === 'practice') {
+        badgePhase.textContent = `Sesi Latihan (${practiceTrials} Trial)`;
+        badgePhase.className = 'mode-phase-badge badge-tutorial';
+        tutorialBox.style.display = 'none';
+        tutorialActions.style.display = 'none';
+        runningActions.style.display = 'flex';
+        progressSection.classList.add('visible');
+        startStimulusRun(practiceTrials);
+      } else if (phase === 'real_test') {
+        const nTitle = currentN === 0 ? '0-Back (Ground Truth)' : `${currentN}-Back`;
+        badgePhase.textContent = `Tes Asli: ${nTitle}`;
+        badgePhase.className = 'mode-phase-badge badge-test';
+        tutorialBox.style.display = 'none';
+        tutorialActions.style.display = 'none';
+        runningActions.style.display = 'flex';
+        progressSection.classList.add('visible');
+
+        // Log marker awal blok di logger
+        if (experimentLogger && typeof experimentLogger.logBlockMarker === 'function') {
+          experimentLogger.logBlockMarker({
+            block_index: currentBlockIndex,
+            block_n: currentN,
+            event: "start",
+            timestamp: typeof localTimestamp === 'function' ? localTimestamp() : new Date().toISOString()
+          });
+        }
+
+        startStimulusRun(totalTrials);
+      }
+    }
+
+    // Generator barisan stimulus (0, 1, 2, 3-Back)
+    function generateSequence(n, length, targetRatio = 0.25) {
+      const seq = [];
+      const numTiles = 9;
+      for (let i = 0; i < length; i++) {
+        if (n === 0) {
+          // 0-back: target adalah kotak tengah (index 4 / r2c2)
+          if (Math.random() < targetRatio) {
+            seq.push(fixedTarget0Back);
+          } else {
+            let pos;
+            do {
+              pos = Math.floor(Math.random() * numTiles);
+            } while (pos === fixedTarget0Back);
+            seq.push(pos);
+          }
+        } else {
+          // n-back: target adalah posisi n langkah sebelumnya
+          if (i >= n && Math.random() < targetRatio) {
+            seq.push(seq[i - n]);
+          } else {
+            let pos;
+            do {
+              pos = Math.floor(Math.random() * numTiles);
+            } while (i >= n && pos === seq[i - n]);
+            seq.push(pos);
+          }
+        }
+      }
+      return seq;
+    }
+
+    function tileIndexToCode(idx) {
+      const r = Math.floor(idx / 3) + 1;
+      const c = (idx % 3) + 1;
+      return `r${r}c${c}`;
+    }
+
+    function startStimulusRun(trialsCount) {
+      isGameRunning = true;
+      currentTrial = 0;
+      hits = 0;
+      falseAlarms = 0;
+      misses = 0;
+      correctRejections = 0;
+      sequence = generateSequence(currentN, trialsCount, activeConfig.target_ratio || 0.25);
+
+      headerTotal.textContent = trialsCount;
+      progressFill.style.width = '0%';
+      feedbackDisplay.innerHTML = '';
+      updateScoreboard();
+
+      nextTrial(trialsCount);
+    }
+
+    function nextTrial(maxTrials) {
+      if (!isGameRunning) return;
+
+      if (currentTrial >= maxTrials) {
+        finishRun(maxTrials);
+        return;
+      }
+
+      trialResponded = false;
+      currentResponseSource = null;
+      currentResponseTs = null;
+      currentReactionTimeMs = null;
+
+      const targetPos = sequence[currentTrial];
+
+      let isTarget = false;
+      if (currentN === 0) {
+        isTarget = (targetPos === fixedTarget0Back);
+      } else {
+        isTarget = (currentTrial >= currentN && sequence[currentTrial] === sequence[currentTrial - currentN]);
+      }
+
+      currentTrial++;
+      headerTrial.textContent = currentTrial;
+      labelProgress.textContent = `Progres: ${currentTrial} / ${maxTrials}`;
+      progressFill.style.width = `${(currentTrial / maxTrials) * 100}%`;
+
+      // Catat onset stimulus
+      currentTrialOnsetPerf = performance.now();
+      currentTrialOnsetLocal = typeof localTimestamp === 'function' ? localTimestamp() : new Date().toISOString();
+      currentTrialOnsetIso = typeof isoTimestamp === 'function' ? isoTimestamp() : new Date().toISOString();
+
+      // Nyalakan kotak biru pada tile target (kotak lainnya tetap tampak)
+      clearGrid();
+      tiles[targetPos].classList.add('active');
+
+      stimulusTimeout = setTimeout(() => {
+        // Matikan warna biru aktif, KOTAK OUTLINE TETAP NAMPAK JELAS
+        clearGrid();
+
+        // Hitung hasil jika tidak ada respons sebelum stimulus padam
+        const responded = trialResponded;
+        if (isTarget && !responded) {
+          misses++;
+        } else if (!isTarget && !responded) {
+          correctRejections++;
+        }
+
+        // Catat trial ke ExperimentLogger jika di fase tes asli
+        if (currentPhase === 'real_test' && experimentLogger) {
+          experimentLogger.logTrial({
+            stim_onset_ts: currentTrialOnsetLocal,
+            stim_onset_iso: currentTrialOnsetIso,
+            block_index: currentBlockIndex,
+            block_n: currentN,
+            trial_num: currentTrial,
+            stimulus: tileIndexToCode(targetPos),
+            is_target: isTarget,
+            response: responded ? (currentResponseSource || "spacebar") : "",
+            response_ts: currentResponseTs || "",
+            reaction_time_ms: currentReactionTimeMs ?? "",
+            correct: isTarget ? responded : !responded
+          });
+        }
+
+        updateScoreboard();
+
+        // Jeda antar-stimulus (ISI) — Kotak-kotak 3x3 tetap ada di layar!
+        gameTimer = setTimeout(() => {
+          nextTrial(maxTrials);
+        }, Math.max(100, isiMs - stimDurationMs));
+      }, stimDurationMs);
+    }
+
+    function recordMatch(source = 'spacebar') {
+      if (!isGameRunning || trialResponded) return;
+      trialResponded = true;
+      currentResponseSource = source;
+      currentResponseTs = typeof localTimestamp === 'function' ? localTimestamp() : new Date().toISOString();
+      if (currentTrialOnsetPerf !== null) {
+        currentReactionTimeMs = Math.round(performance.now() - currentTrialOnsetPerf);
+      }
+
+      const trialIndex = currentTrial - 1;
+      let isTarget = false;
+      if (currentN === 0) {
+        isTarget = (sequence[trialIndex] === fixedTarget0Back);
+      } else {
+        isTarget = (trialIndex >= currentN && sequence[trialIndex] === sequence[trialIndex - currentN]);
+      }
+
+      if (isTarget) {
+        hits++;
+        if (currentPhase === 'practice') showFeedback(true);
+      } else {
+        falseAlarms++;
+        if (currentPhase === 'practice') showFeedback(false);
+      }
+      updateScoreboard();
+    }
+
+    function showFeedback(isCorrect) {
+      if (isCorrect) {
+        feedbackDisplay.innerHTML = '<span class="feedback-correct">✔ Cocok (Benar!)</span>';
+      } else {
+        feedbackDisplay.innerHTML = '<span class="feedback-incorrect">❌ Tidak Cocok (Salah)</span>';
+      }
+    }
+
+    function updateScoreboard() {
+      const totalAttempts = hits + falseAlarms + misses;
+      let scorePct = 0;
+      if (totalAttempts > 0) {
+        scorePct = Math.max(0, Math.round(((hits - falseAlarms) / Math.max(1, hits + misses)) * 100));
+      }
+      labelScore.textContent = `Akurasi: ${scorePct}%`;
+    }
+
+    // Matikan warna biru aktif, papan dan 9 kotak tetap utuh di layar
+    function clearGrid() {
+      tiles.forEach(tile => tile.classList.remove('active'));
+    }
+
+    function stopGame() {
+      isGameRunning = false;
+      clearTimeout(gameTimer);
+      clearTimeout(stimulusTimeout);
+      clearGrid();
+    }
+
+    function finishRun(maxTrials) {
+      stopGame();
+      const totalTargets = hits + misses;
+      const akurasi = totalTargets > 0 ? Math.round((hits / totalTargets) * 100) : 0;
+
+      runningActions.style.display = 'none';
+
+      if (currentPhase === 'practice') {
+        feedbackDisplay.innerHTML = `
+          <div style="text-align: center; color: var(--text-main); line-height: 1.6;">
+            <strong style="color: var(--primary-blue); font-size: 1rem;">Latihan Selesai!</strong><br>
+            <span style="font-size: 0.88rem; color: var(--text-muted);">
+              Benar: <strong>${hits}</strong> | Salah Tekan: <strong>${falseAlarms}</strong>
+            </span>
+            <div style="margin-top: 14px; display:flex; justify-content:center; gap:8px;">
+              <button onclick="setPhase('real_test')" class="btn btn-primary" style="padding: 9px 20px; font-size: 0.88rem;">Mulai Tes Asli (Clean) →</button>
+              <button onclick="setPhase('tutorial')" class="btn btn-secondary" style="padding: 9px 16px; font-size: 0.88rem;">Ulang Tutorial</button>
+            </div>
+          </div>
+        `;
+      } else {
+        // Log marker selesai blok di logger
+        if (experimentLogger && typeof experimentLogger.logBlockMarker === 'function') {
+          experimentLogger.logBlockMarker({
+            block_index: currentBlockIndex,
+            block_n: currentN,
+            event: "end",
+            timestamp: typeof localTimestamp === 'function' ? localTimestamp() : new Date().toISOString()
+          });
+        }
+
+        // Cek apakah masih ada blok berikutnya dalam blockOrder
+        const nextBlockIdx = currentBlockIndex + 1;
+        const hasNextBlock = nextBlockIdx < blockOrder.length;
+        const nextN = hasNextBlock ? blockOrder[nextBlockIdx] : null;
+
+        let nextBtnHtml = '';
+        if (hasNextBlock) {
+          const nextLabel = nextN === 0 ? "0-Back (Ground Truth)" : `${nextN}-Back`;
+          nextBtnHtml = `<button onclick="goToNextBlock(${nextBlockIdx})" class="btn btn-primary" style="padding: 10px 22px; font-size: 0.88rem;">Lanjut ke Blok ${nextBlockIdx + 1} (${nextLabel}) →</button>`;
+        }
+
+        const blockTitle = currentN === 0 ? "0-Back (Ground Truth)" : `${currentN}-Back`;
+        const sessionFinishMsg = !hasNextBlock 
+          ? `<div style="color:#16a34a; font-weight:700; margin-bottom:8px;">🎉 Seluruh Blok Eksperimen Telah Selesai!</div>` 
+          : '';
+
+        feedbackDisplay.innerHTML = `
+          <div style="text-align: center; color: var(--text-main); line-height: 1.6; padding: 10px 0;">
+            ${sessionFinishMsg}
+            <strong style="color: var(--primary-blue); font-size: 1.15rem;">Tes ${blockTitle} Selesai!</strong><br>
+            <span style="font-size: 0.92rem; color: var(--text-muted);">
+              Target Terdeteksi: <strong>${hits}/${totalTargets} (${akurasi}%)</strong> | Salah Tekan: <strong>${falseAlarms}</strong>
+            </span>
+            <div style="margin-top: 16px; display:flex; justify-content:center; gap:10px; flex-wrap:wrap;">
+              <button onclick="downloadResultsCSV()" class="btn btn-success" style="padding: 10px 22px; font-size: 0.9rem;">📥 Unduh Data CSV</button>
+              ${nextBtnHtml}
+              <button onclick="window.location.href='index.html'" class="btn btn-secondary" style="padding: 10px 18px; font-size: 0.88rem;">⚙️ Kembali ke Pengaturan</button>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function goToNextBlock(nextIdx) {
+      currentBlockIndex = nextIdx;
+      currentN = blockOrder[currentBlockIndex];
+      setPhase('tutorial');
+      updateInstructions();
+    }
+
+    function downloadResultsCSV() {
+      if (experimentLogger && typeof experimentLogger.downloadCSV === 'function') {
+        experimentLogger.downloadCSV();
+      } else {
+        alert("Data logger belum tersedia untuk diunduh.");
+      }
+    }
+
+    // Event listeners tombol aksi
+    btnStartPractice.addEventListener('click', () => setPhase('practice'));
+    btnStartRealTest.addEventListener('click', () => setPhase('real_test'));
+    btnMatch.addEventListener('click', () => recordMatch('click'));
+
+    // Klik langsung pada kotak papan 3x3 yang menyala
+    tiles.forEach(tile => {
+      tile.addEventListener('pointerdown', (e) => {
+        if (isGameRunning && activeConfig.enable_click_response !== false) {
+          recordMatch('click');
+        }
+      });
+    });
+
+    // Tombol SPASI
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (isGameRunning) recordMatch('spacebar');
+      }
+    });
+
+    // Inisialisasi awal
+    setupHeader();
+    updateInstructions();
+  </script>
+</body>
+</html>

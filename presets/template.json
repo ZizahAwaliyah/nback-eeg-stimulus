@@ -6,5 +6,7 @@
   "stimulus_duration_ms": 500,
   "target_ratio": 0.25,
   "stimulus_type": "letters",
-  "enable_fatigue_scale": false
+  "enable_fatigue_scale": false,
+  "enable_practice": true,
+  "practice_trials": 5
 }
