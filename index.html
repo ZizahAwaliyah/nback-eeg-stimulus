@@ -43,7 +43,7 @@
           <label>
             Kondisi Urutan:
             <select id="condition">
-              <option value="menaik">Menaik (1→2→3)</option>
+              <option value="menaik">Menaik (tingkat kecil → besar)</option>
               <option value="acak">Acak</option>
             </select>
           </label>
@@ -107,7 +107,7 @@
         </label>
         <label class="toggle">
           <input type="checkbox" id="enable-practice" checked>
-          <span>Aktifkan latihan (jumlah trial sama dengan blok sebenarnya, data latihan tidak dicatat)</span>
+          <span>Aktifkan latihan (data latihan tidak dicatat)</span>
         </label>
         <label class="toggle" id="row-randomize-layout">
           <input type="checkbox" id="randomize-layout">
@@ -116,6 +116,41 @@
         <label class="toggle" id="row-click-response">
           <input type="checkbox" id="enable-click-response" checked>
           <span>Izinkan partisipan menjawab dengan klik/sentuh layar, bukan hanya SPASI</span>
+        </label>
+
+        <div class="grid-2 options-grid">
+          <label>
+            Trial latihan per tingkat (0 = sepanjang blok):
+            <input type="number" id="practice-trials" value="0" min="0" max="300">
+          </label>
+          <label>
+            Waktu latihan:
+            <select id="practice-placement">
+              <option value="per_block">Tepat sebelum tiap blok</option>
+              <option value="before_session">Semua di awal sesi, sebelum blok 1</option>
+            </select>
+          </label>
+          <label>
+            Istirahat antarblok (detik, 0 = tanpa timer):
+            <input type="number" id="rest-seconds" value="0" min="0" max="900" step="10">
+          </label>
+        </div>
+
+        <label class="toggle">
+          <input type="checkbox" id="dark-theme">
+          <span>Latar gelap selama sesi (mengurangi silau)</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="show-fixation">
+          <span>Tampilkan tanda fiksasi <strong>+</strong> di antara stimulus</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="hide-block-feedback">
+          <span>Sembunyikan skor dari partisipan setelah tiap blok (skor tetap ada di layar akhir &amp; berkas)</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="minimal-block-screen">
+          <span>Layar blok minimal: tanpa timer, nomor trial, dan teks bawah (hanya stimulus)</span>
         </label>
       </div>
 
@@ -129,13 +164,19 @@
   <!-- ================================================================ -->
   <section id="screen-instructions" class="screen">
     <div class="container">
+      <div id="rest-banner" class="rest-banner" style="display:none">
+        <p class="rest-title">Istirahat</p>
+        <div id="rest-timer" class="rest-timer">02:00</div>
+        <p class="rest-note">Tetap duduk santai dan jangan melepas headband.</p>
+      </div>
+      <p id="practice-phase-label" class="phase-label" style="display:none"></p>
       <h1>Instruksi Tugas</h1>
       <div class="card instruction-card">
         <h2>Cara Mengerjakan Tugas <span id="current-n-display"></span>-back</h2>
         <div id="instructions-body"></div>
         <div class="key-hint">
           <div class="key-box">SPASI</div>
-          <p>Tekan tombol <strong>SPASI</strong> ketika stimulus sekarang <strong>cocok</strong> dengan yang <span id="n-back-word"></span>.</p>
+          <p id="key-hint-text">Tekan tombol <strong>SPASI</strong> ketika stimulus sekarang <strong>cocok</strong>.</p>
         </div>
         <p class="warning">Kalau tidak cocok, <strong>jangan tekan apa-apa</strong> dan tunggu stimulus berikutnya.</p>
       </div>
@@ -214,12 +255,16 @@
   <!-- ================================================================ -->
   <section id="screen-countdown" class="screen">
     <div class="container countdown-container">
-      <div class="marker-info">
+      <div id="marker-info" class="marker-info">
         <p><strong>PENANDA WAKTU MULAI</strong></p>
         <p>Tekan tombol Marker di Mind Monitor bersamaan dengan angka <strong>1</strong></p>
       </div>
+      <div id="countdown-target" class="countdown-target" style="display:none">
+        <p>Huruf sasaran</p>
+        <div id="countdown-target-letter" class="countdown-target-letter"></div>
+      </div>
       <div id="countdown-display" class="countdown-number">3</div>
-      <p class="countdown-label">Blok akan mulai dalam...</p>
+      <p id="countdown-label" class="countdown-label">Blok akan mulai dalam...</p>
     </div>
   </section>
 
@@ -251,7 +296,7 @@
       <div id="stimulus-display" class="stimulus"></div>
     </div>
     <div class="block-footer">
-      <p>Tekan SPASI (atau klik/sentuh layar) jika posisinya cocok dengan <span id="block-n-back-display"></span></p>
+      <p>Tekan SPASI jika cocok dengan <span id="block-n-back-display"></span></p>
       <div id="key-indicator" class="key-indicator">SPASI</div>
     </div>
   </section>

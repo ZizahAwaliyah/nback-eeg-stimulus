@@ -20,6 +20,12 @@ class ExperimentLogger {
     this.fatigueRatings = [];
     this.blockMarkers = [];
     this.targetStimPerBlock = {}; // 0-back: stimulus target tetap per blok
+    this.restPeriods = [];        // istirahat antarblok (waktu lokal awal & akhir)
+  }
+
+  /** Objek dicatat langsung; kolom `end` diisi saat hitung mundur istirahat habis. */
+  logRest(rest) {
+    this.restPeriods.push(rest);
   }
 
   logTrial(trial) {
@@ -124,6 +130,7 @@ class ExperimentLogger {
         trials: this.trials,
         fatigue_ratings: this.fatigueRatings,
         block_markers: this.blockMarkers,
+        rest_periods: this.restPeriods,
       },
       null,
       2
@@ -179,6 +186,16 @@ class ExperimentLogger {
       "Kalau peneliti yakin partisipan menekan SPASI, cek apakah fokus ada di jendela browser " +
         "(fullscreen) saat kejadian."
     );
+    if (this.restPeriods.length) {
+      lines.push("");
+      lines.push("Istirahat antarblok:");
+      this.restPeriods.forEach((r) => {
+        lines.push(
+          `  sebelum blok ${r.before_block_index + 1} (${r.before_block_n}-back): ` +
+            `${r.start} s/d ${r.end || "(tidak selesai)"}, rencana ${r.planned_seconds} detik`
+        );
+      });
+    }
     if (this.fatigueRatings.length) {
       lines.push("");
       lines.push("Skala kelelahan (KSS):");

@@ -1,9 +1,13 @@
 // ================================================================
 // main.js — Orchestrator: data partisipan, navigasi layar, alur eksperimen
 // ================================================================
-// Alur: Setup → Sumber Data (form + CSV) → Instruksi + Tips → Countdown 3-2-1 →
-//       Latihan penuh (opsional) → Blok → Ringkasan Blok → Cek Respons → (ulang) →
-//       Sesi Selesai (unduh CSV/JSON/laporan + simpan ke folder dokumentasi)
+// Alur per blok:
+//   [Istirahat terhitung mundur + Instruksi] → (Latihan, kalau per_block) → (KSS pre) →
+//   Hitung mundur 3-2-1 (+ Marker, + huruf sasaran 0-back) → Blok →
+//   (Ringkasan blok, kalau skor tidak disembunyikan) → Cek respons → (KSS post) → blok berikutnya
+// Kalau practice_placement = "before_session", semua latihan dikerjakan dulu
+// (instruksi → latihan untuk tiap tingkat), baru kemudian blok 1.
+// Akhir: Sesi Selesai (unduh CSV/JSON/laporan + simpan ke folder dokumentasi)
 
 let currentConfig = null;
 let currentLogger = null;
@@ -14,6 +18,16 @@ let kssPhase = "pre";
 let currentTargetStim = null;
 let experimentStarted = false;
 let sessionFinished = false;
+
+// Huruf sasaran 0-back per blok, dipilih sekali di awal sesi supaya latihan dan
+// blok sebenarnya memakai huruf yang sama.
+let targetStimByBlock = [];
+// Latihan di awal sesi: indeks blok yang sedang dilatih (null = tidak sedang latihan awal)
+let practiceQueueIdx = null;
+// Ke mana tombol "Lanjut" di layar Latihan Selesai mengarah
+let practiceDoneNext = "block";
+// Timer istirahat antarblok
+let restInterval = null;
 
 // Penanda sesi kunjungan (P1, P2, ...) untuk penamaan folder dokumentasi
 let sessionVisitNumber = 1;
@@ -168,88 +182,216 @@ async function handleStartExperiment() {
   currentConfig.tz_offset_minutes = new Date().getTimezoneOffset();
   experimentStarted = true;
 
+  // Satu huruf sasaran per blok 0-back, dicatat di JSON (target_stimulus_per_block)
+  targetStimByBlock = blockOrder.map((n) =>
+    n !== 0
+      ? null
+      : currentConfig.stimulus_type === "grid3x3"
+        ? "r2c2" // mode kotak: kotak tengah, seperti sebelumnya
+        : randomTargetStimulus(currentConfig.stimulus_pool)
+  );
+  targetStimByBlock.forEach((t, idx) => {
+    if (t !== null) currentLogger.setTargetStimulus(idx, t);
+  });
+
+  document.body.classList.toggle("theme-dark", config.dark_theme === true);
+
   sessionVisitNumber = parseInt(document.getElementById("visit-number").value, 10) || 1;
 
   buildDocumentationList();
   applyDocumentationFilename();
-  showInstructionsForCurrentBlock();
+
+  if (practiceEnabled() && currentConfig.practice_placement === "before_session") {
+    practiceQueueIdx = 0;
+    showPracticeInstructions(practiceQueueIdx);
+  } else {
+    showInstructionsForCurrentBlock();
+  }
+}
+
+function practiceEnabled() {
+  return currentConfig.enable_practice === true;
+}
+
+/** Jumlah trial latihan: practice_trials, atau sepanjang blok kalau 0/kosong. */
+function practiceTrialCount() {
+  const full = calculateTrialCount(currentConfig.block_duration_minutes, currentConfig.isi_ms);
+  const n = parseInt(currentConfig.practice_trials, 10);
+  return n > 0 ? Math.min(n, full) : full;
 }
 
 // ------------ Instructions ------------
 
-function showInstructionsForCurrentBlock() {
+function showInstructionsForCurrentBlock(withRest = false) {
   const n = blockOrder[currentBlockIdx];
-
-  // 0-back: stimulus target tetap, dipilih per blok dan dicatat di logger
-  if (n === 0) {
-    if (currentConfig.stimulus_type === "grid3x3") {
-      currentTargetStim = "r2c2";
-    } else {
-      currentTargetStim = randomTargetStimulus(currentConfig.stimulus_pool);
-    }
-    currentLogger.setTargetStimulus(currentBlockIdx, currentTargetStim);
-  } else {
-    currentTargetStim = null;
-  }
+  currentTargetStim = targetStimByBlock[currentBlockIdx] ?? null;
 
   buildInstructions(n, currentTargetStim);
-  document.getElementById("block-current").textContent = currentBlockIdx + 1;
-  document.getElementById("block-total").textContent = blockOrder.length;
+  setPhaseLabel(null);
+  document.querySelector("#screen-instructions .progress-info").innerHTML =
+    `Blok <span id="block-current">${currentBlockIdx + 1}</span> dari ` +
+    `<span id="block-total">${blockOrder.length}</span>`;
 
+  showScreen("screen-instructions");
+  if (withRest && currentConfig.rest_seconds > 0) startRest();
+  else stopRest(false);
+}
+
+/** Instruksi untuk latihan awal sesi (practice_placement = before_session). */
+function showPracticeInstructions(idx) {
+  const n = blockOrder[idx];
+  currentTargetStim = targetStimByBlock[idx] ?? null;
+  buildInstructions(n, currentTargetStim);
+  setPhaseLabel(`LATIHAN ${idx + 1} DARI ${blockOrder.length} · data tidak dicatat`);
+  document.querySelector("#screen-instructions .progress-info").textContent =
+    `Latihan ${idx + 1} dari ${blockOrder.length}`;
+  stopRest(false);
   showScreen("screen-instructions");
 }
 
+function setPhaseLabel(text) {
+  const el = document.getElementById("practice-phase-label");
+  if (!el) return;
+  el.style.display = text ? "block" : "none";
+  el.textContent = text || "";
+}
+
 function handleContinueFromInstructions() {
-  startCountdownAndBlock();
+  if (restInterval) return; // istirahat belum selesai
+  if (practiceQueueIdx !== null) {
+    showPracticeIntroScreen(blockOrder[practiceQueueIdx]);
+  } else if (practiceEnabled() && currentConfig.practice_placement !== "before_session") {
+    showPracticeIntroScreen(blockOrder[currentBlockIdx]);
+  } else {
+    goToFatigueOrBlock("pre");
+  }
+}
+
+// ------------ Istirahat antarblok ------------
+// Layar instruksi blok berikutnya ditampilkan bersama hitung mundur istirahat;
+// tombol Lanjut baru aktif setelah waktu habis. Awal & akhir istirahat dicatat di JSON.
+
+function startRest() {
+  stopRest(false);
+  const banner = document.getElementById("rest-banner");
+  const timerEl = document.getElementById("rest-timer");
+  const btn = document.getElementById("btn-continue-to-practice-or-fatigue");
+  const totalMs = currentConfig.rest_seconds * 1000;
+  const startPerf = performance.now();
+  const restRecord = {
+    before_block_index: currentBlockIdx,
+    before_block_n: blockOrder[currentBlockIdx],
+    planned_seconds: currentConfig.rest_seconds,
+    start: localTimestamp(),
+    end: null,
+  };
+  currentLogger.logRest(restRecord);
+
+  banner.style.display = "block";
+  banner.classList.remove("done");
+  btn.disabled = true;
+
+  const tick = () => {
+    const remaining = Math.max(0, totalMs - (performance.now() - startPerf));
+    const sec = Math.ceil(remaining / 1000);
+    timerEl.textContent = `${pad(Math.floor(sec / 60))}:${pad(sec % 60)}`;
+    if (remaining <= 0) {
+      restRecord.end = localTimestamp();
+      stopRest(true);
+    }
+  };
+  tick();
+  restInterval = setInterval(tick, 200);
+}
+
+function stopRest(finished) {
+  if (restInterval) clearInterval(restInterval);
+  restInterval = null;
+  const banner = document.getElementById("rest-banner");
+  const btn = document.getElementById("btn-continue-to-practice-or-fatigue");
+  if (btn) btn.disabled = false;
+  if (!banner) return;
+  if (finished) {
+    banner.classList.add("done");
+    document.getElementById("rest-timer").textContent = "Selesai";
+  } else {
+    banner.style.display = "none";
+  }
 }
 
 // ------------ Practice (jumlah trial sama dengan blok sebenarnya) ------------
 
-function showPracticeIntroScreen() {
-  const n = blockOrder[currentBlockIdx];
-  const totalTrials = calculateTrialCount(currentConfig.block_duration_minutes, currentConfig.isi_ms);
-  const minutes = Math.round(((totalTrials * currentConfig.isi_ms) / 60000) * 10) / 10;
+function showPracticeIntroScreen(n) {
+  const trials = practiceTrialCount();
+  const seconds = Math.round((trials * currentConfig.isi_ms) / 1000);
+  const duration = seconds >= 90 ? `sekitar ${Math.round((seconds / 60) * 10) / 10} menit` : `sekitar ${seconds} detik`;
 
   document.getElementById("practice-intro-n").textContent = n;
-  document.getElementById("practice-intro-trials").textContent = totalTrials;
+  document.getElementById("practice-intro-trials").textContent = trials;
   document.getElementById("practice-note").innerHTML =
-    "Latihan ini memakai jumlah trial yang sama dengan blok sebenarnya " +
-    `(<strong>${totalTrials} trial</strong>, sekitar ${minutes} menit). ` +
+    `Latihan berisi <strong>${trials} trial</strong> (${duration}). ` +
     "Data latihan <strong>tidak dicatat</strong> untuk analisis, jadi partisipan leluasa mencoba.";
+
+  const skipBtn = document.getElementById("btn-skip-practice");
+  skipBtn.textContent = practiceQueueIdx !== null ? "Lewati Semua Latihan" : "Lewati Latihan";
 
   showScreen("screen-practice-intro");
 }
 
 function handleSkipPractice() {
-  goToFatigueOrBlock("pre");
+  if (practiceQueueIdx !== null) {
+    // Latihan awal sesi dilewati seluruhnya → langsung ke blok 1
+    practiceQueueIdx = null;
+    showInstructionsForCurrentBlock();
+  } else {
+    goToFatigueOrBlock("pre");
+  }
 }
 
 async function handleStartPractice() {
-  showScreen("screen-countdown");
-  await runCountdown(3);
+  const blockIdx = practiceQueueIdx !== null ? practiceQueueIdx : currentBlockIdx;
+  const n = blockOrder[blockIdx];
+  const target = targetStimByBlock[blockIdx] ?? null;
 
-  const n = blockOrder[currentBlockIdx];
-  const totalTrials = calculateTrialCount(currentConfig.block_duration_minutes, currentConfig.isi_ms);
+  showScreen("screen-countdown");
+  await runCountdown(3, { showMarker: false, targetStim: target, label: "Latihan akan mulai dalam..." });
+
   const sequence = generateSequence(
     n,
-    totalTrials,
+    practiceTrialCount(),
     currentConfig.target_ratio,
     currentConfig.stimulus_pool,
-    n === 0 ? currentTargetStim : null
+    n === 0 ? target : null
   );
 
   showScreen("screen-block");
   enterFullscreen();
 
-  const runner = new BlockRunner(sequence, currentConfig, currentBlockIdx, n, currentLogger, true);
+  const runner = new BlockRunner(sequence, currentConfig, blockIdx, n, currentLogger, true);
   await runner.start();
 
   exitFullscreen();
+
+  if (practiceQueueIdx !== null) {
+    practiceQueueIdx++;
+    if (practiceQueueIdx < blockOrder.length) {
+      showPracticeInstructions(practiceQueueIdx);
+      return;
+    }
+    practiceQueueIdx = null;
+    practiceDoneNext = "instructions";
+  } else {
+    practiceDoneNext = "block";
+  }
   showScreen("screen-practice-done");
 }
 
 function handleContinueFromPracticeDone() {
-  goToFatigueOrBlock("pre");
+  if (practiceDoneNext === "instructions") {
+    showInstructionsForCurrentBlock();
+  } else {
+    goToFatigueOrBlock("pre");
+  }
 }
 
 // ------------ Fatigue Scale (dipakai sebelum & sesudah blok) ------------
@@ -310,15 +452,12 @@ function handleFatigueContinue() {
 // ------------ Block Execution ------------
 
 async function startCountdownAndBlock() {
+  // Dulu: latihan dipanggil dari sini, dan setelah latihan alur kembali ke sini lagi,
+  // sehingga blok sebenarnya tidak pernah dimulai. Latihan sekarang diatur di
+  // handleContinueFromInstructions, jadi fungsi ini hanya hitung mundur + blok.
   showScreen("screen-countdown");
-  await runCountdown(3);
-
-  if (currentConfig.enable_practice) {
-    // Latihan penuh (semua trial) sebagai pemanasan sebelum blok sebenarnya
-    showPracticeIntroScreen();
-  } else {
-    await runCurrentBlock();
-  }
+  await runCountdown(3, { showMarker: true, targetStim: currentTargetStim });
+  await runCurrentBlock();
 }
 
 async function runCurrentBlock() {
@@ -339,7 +478,12 @@ async function runCurrentBlock() {
   await runner.start();
 
   exitFullscreen();
-  showBlockSummary();
+  if (currentConfig.hide_block_feedback) {
+    // Skor tidak diperlihatkan ke partisipan; tetap cek blok tanpa respons
+    handleContinueFromBlockSummary();
+  } else {
+    showBlockSummary();
+  }
 }
 
 // ------------ Block Summary ------------
@@ -428,7 +572,7 @@ function handleContinueAfterResponseCheck() {
 function afterBlockPost() {
   currentBlockIdx++;
   if (currentBlockIdx < blockOrder.length) {
-    showInstructionsForCurrentBlock();
+    showInstructionsForCurrentBlock(true);
   } else {
     showFinishedScreen();
   }

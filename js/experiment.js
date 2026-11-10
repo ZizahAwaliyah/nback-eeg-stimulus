@@ -53,10 +53,19 @@ class BlockRunner {
     document.getElementById("block-info-total").textContent = this.sequence.length;
     document.getElementById("block-n-back-display").textContent = this.blockDescription();
 
+    // Layar blok minimal: hanya stimulus (dan fiksasi) yang tampil, supaya tampilan
+    // semua tingkat identik dan mata tidak melirik ke timer/nomor trial.
+    const blockScreen = document.getElementById("screen-block");
+    if (blockScreen) blockScreen.classList.toggle("minimal", this.config.minimal_block_screen === true);
+
     // Pastikan papan 3x3 tampil sejak awal blok dimulai
     const isGrid = this.config.stimulus_type === "grid3x3";
     const grid = document.getElementById("grid-3x3");
     const stimulusEl = document.getElementById("stimulus-display");
+    // Mode huruf/angka: papan 3x3 dikeluarkan dari tata letak. Sebelumnya papan hanya
+    // "visibility: hidden" sehingga tetap memakan tempat dan huruf bergeser ke kanan
+    // dari tengah layar.
+    if (grid) grid.style.display = isGrid ? "" : "none";
     if (isGrid) {
       if (grid) grid.classList.remove("hidden");
       if (stimulusEl) stimulusEl.classList.add("hidden");
@@ -95,8 +104,9 @@ class BlockRunner {
     document.addEventListener("keydown", this.keyListener);
 
     // Klik / tap area kotak 3x3 juga dihitung sebagai respons
-    const grid = document.getElementById("grid-3x3");
-    if (grid && this.config.enable_click_response) {
+    // (variabel `grid` sudah dideklarasikan di atas; deklarasi ulang membuat
+    //  seluruh experiment.js gagal dimuat dan mode huruf/angka tidak jalan)
+    if (isGrid && grid && this.config.enable_click_response) {
       grid.classList.add("clickable");
       this.gridCellListener = (e) => {
         e.preventDefault();
@@ -114,8 +124,18 @@ class BlockRunner {
   /** Teks tugas untuk footer blok. */
   blockDescription() {
     const isGrid = this.config.stimulus_type === "grid3x3";
-    if (this.blockN === 0) return isGrid ? "kotak target" : "stimulus target";
-    return `${this.blockN} langkah sebelumnya`;
+    const unit = isGrid ? "kotak" : this.config.stimulus_type === "digits" ? "angka" : "huruf";
+    if (this.blockN === 0) return `${unit} target`;
+    return `${unit} ${this.blockN} langkah sebelumnya`;
+  }
+
+  /** Tanda fiksasi "+" di tengah layar (mode huruf/angka saja). */
+  showFixation() {
+    const el = document.getElementById("stimulus-display");
+    if (!el) return;
+    el.textContent = "+";
+    el.classList.add("fixation");
+    el.classList.remove("hidden");
   }
 
   /** Umpan balik visual saat respons tercatat. */
@@ -157,6 +177,7 @@ class BlockRunner {
       if (gridEl) gridEl.classList.add("hidden");
       if (stimulusEl) {
         stimulusEl.textContent = stimulusCode;
+        stimulusEl.classList.remove("fixation");
         stimulusEl.classList.remove("hidden");
       }
     }
@@ -164,7 +185,13 @@ class BlockRunner {
 
   hideStimulus() {
     const stimulusEl = document.getElementById("stimulus-display");
-    if (stimulusEl) stimulusEl.classList.add("hidden");
+    const isGrid = this.config.stimulus_type === "grid3x3";
+    if (!isGrid && this.config.show_fixation && this.currentTrialIdx < this.sequence.length) {
+      this.showFixation();
+    } else if (stimulusEl) {
+      stimulusEl.classList.add("hidden");
+      stimulusEl.classList.remove("fixation");
+    }
     // Matikan kotak yang sedang menyala biru, tetapi papan 3x3 tetap tampil di layar
     this.clearGrid();
   }
@@ -232,6 +259,8 @@ class BlockRunner {
       if (this.gridCellListener) grid.removeEventListener("pointerdown", this.gridCellListener);
     }
     this.hideStimulus();
+    const blockScreen = document.getElementById("screen-block");
+    if (blockScreen) blockScreen.classList.remove("minimal");
 
     if (!this.isPractice) {
       this.logger.logBlockMarker({
@@ -280,7 +309,26 @@ function playBeep(frequency = 800, duration = 150, volume = 0.3) {
   }
 }
 
-function runCountdown(seconds = 3) {
+/**
+ * @param {number} seconds
+ * @param {{showMarker?: boolean, targetStim?: string|null, label?: string}} opts
+ *   showMarker : tampilkan pengingat tombol Marker Mind Monitor (blok sebenarnya saja,
+ *                supaya tidak ada marker nyasar saat latihan)
+ *   targetStim : huruf sasaran 0-back. Ditampilkan HANYA di layar hitung mundur,
+ *                tidak selama blok, supaya tampilan blok sama di semua tingkat.
+ */
+function runCountdown(seconds = 3, opts = {}) {
+  const { showMarker = true, targetStim = null, label = "Blok akan mulai dalam..." } = opts;
+  const markerEl = document.getElementById("marker-info");
+  if (markerEl) markerEl.style.display = showMarker ? "block" : "none";
+  const targetBox = document.getElementById("countdown-target");
+  if (targetBox) {
+    targetBox.style.display = targetStim ? "block" : "none";
+    document.getElementById("countdown-target-letter").textContent = targetStim || "";
+  }
+  const labelEl = document.getElementById("countdown-label");
+  if (labelEl) labelEl.textContent = label;
+
   return new Promise((resolve) => {
     const display = document.getElementById("countdown-display");
     let count = seconds;
@@ -327,7 +375,7 @@ function buildInstructions(n, targetStim = null) {
         </div>
         <p>Kalau kotak lain yang menyala, <strong>jangan tekan apa-apa</strong>, tunggu kotak berikutnya.</p>
       `;
-      document.getElementById("n-back-word").textContent = "adalah kotak target";
+      setKeyHint("Tekan tombol <strong>SPASI</strong> ketika kotak yang menyala adalah <strong>kotak target</strong>.");
     } else {
       container.innerHTML = `
         <p>Anda akan melihat <strong>satu kotak menyala</strong> di dalam kotak 3×3, posisinya berganti-ganti.</p>
@@ -335,7 +383,7 @@ function buildInstructions(n, targetStim = null) {
         <p>Kalau posisinya <strong>sama</strong> dengan ${n} langkah lalu, tekan <strong>SPASI</strong>.</p>
         <p>Kalau berbeda, jangan tekan apa-apa dan tunggu kotak berikutnya.</p>
       `;
-      document.getElementById("n-back-word").textContent = `${n} langkah`;
+      setKeyHint(`Tekan tombol <strong>SPASI</strong> ketika posisi kotak sekarang <strong>sama</strong> dengan posisi ${n} langkah sebelumnya.`);
     }
 
     const tipsMap = {
@@ -378,7 +426,7 @@ function buildInstructions(n, targetStim = null) {
         <div class="target-letter-display">${targetStim || "B"}</div>
         <p>Jika huruf lain muncul, <strong>jangan tekan apa-apa</strong> dan tunggu huruf berikutnya.</p>
       `;
-      document.getElementById("n-back-word").textContent = "adalah huruf target";
+      setKeyHint("Tekan tombol <strong>SPASI</strong> ketika huruf yang muncul adalah <strong>huruf target</strong>.");
     } else {
       container.innerHTML = `
         <p>Anda akan melihat huruf muncul satu per satu di layar.</p>
@@ -386,7 +434,7 @@ function buildInstructions(n, targetStim = null) {
         <p>Jika huruf sekarang <strong>sama</strong> dengan yang muncul ${n} langkah sebelumnya, tekan <strong>SPASI</strong>.</p>
         <p>Jika berbeda, jangan tekan apa-apa dan tunggu huruf berikutnya.</p>
       `;
-      document.getElementById("n-back-word").textContent = `${n} langkah`;
+      setKeyHint(`Tekan tombol <strong>SPASI</strong> ketika huruf sekarang <strong>sama</strong> dengan huruf ${n} langkah sebelumnya.`);
     }
 
     const tipsMap = {
@@ -424,6 +472,11 @@ function buildInstructions(n, targetStim = null) {
   }
 
   document.getElementById("current-n-display").textContent = n;
+}
+
+function setKeyHint(html) {
+  const el = document.getElementById("key-hint-text");
+  if (el) el.innerHTML = html;
 }
 
 /** HTML sel-sel kotak 3x3 untuk pratinjau target di layar instruksi. */
