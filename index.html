@@ -174,21 +174,16 @@
       <div class="card instruction-card">
         <h2>Cara Mengerjakan Tugas <span id="current-n-display"></span>-back</h2>
         <div id="instructions-body"></div>
-        <div class="key-hint">
-          <div class="key-box">SPASI</div>
-          <p id="key-hint-text">Tekan tombol <strong>SPASI</strong> ketika stimulus sekarang <strong>cocok</strong>.</p>
-        </div>
-        <p class="warning">Kalau tidak cocok, <strong>jangan tekan apa-apa</strong> dan tunggu stimulus berikutnya.</p>
-      </div>
-
-      <div class="card tips-card" id="tips-body">
         <!-- diisi oleh buildInstructions() -->
+        <p id="tips-body" class="instruction-tip"></p>
       </div>
 
-      <div class="progress-info">
-        Blok <span id="block-current">1</span> dari <span id="block-total">3</span>
+      <div class="instruction-footer">
+        <div class="progress-info">
+          Blok <span id="block-current">1</span> dari <span id="block-total">3</span>
+        </div>
+        <button id="btn-continue-to-practice-or-fatigue" class="btn-primary">Lanjut →</button>
       </div>
-      <button id="btn-continue-to-practice-or-fatigue" class="btn-primary">Lanjut →</button>
     </div>
   </section>
 

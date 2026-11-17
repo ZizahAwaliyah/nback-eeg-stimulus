@@ -361,122 +361,50 @@ function buildInstructions(n, targetStim = null) {
   container.innerHTML = "";
   tipsContainer.innerHTML = "";
 
-  if (isGrid) {
-    // ---------- Instruksi mode kotak 3x3 ----------
-    if (n === 0) {
+  // Tampilan minimal: satu kartu berisi penjelasan singkat, pratinjau target (0-back),
+  // lalu satu baris tips di bawah garis pemisah.
+  const unit = isGrid ? "kotak" : "huruf";
+  let tip;
+
+  if (n === 0) {
+    let targetHtml;
+    if (isGrid) {
       const targetCell = parseCell(targetStim) || { row: 2, col: 2 };
-      container.innerHTML = `
-        <p>Anda akan melihat <strong>satu kotak menyala</strong> di dalam kotak 3×3.</p>
-        <p>Tekan <strong>SPASI</strong> setiap kali kotak yang menyala adalah <strong>kotak target</strong> di bawah ini:</p>
+      targetHtml = `
         <div class="target-grid-wrapper">
           <div class="grid-3x3 grid-preview">
             ${buildGridPreviewHtml(targetCell.row, targetCell.col)}
           </div>
-        </div>
-        <p>Kalau kotak lain yang menyala, <strong>jangan tekan apa-apa</strong>, tunggu kotak berikutnya.</p>
-      `;
-      setKeyHint("Tekan tombol <strong>SPASI</strong> ketika kotak yang menyala adalah <strong>kotak target</strong>.");
+        </div>`;
+      tip = `Fokus pada kotak target, tekan <strong>SPASI</strong> dengan cepat, dan abaikan kotak lainnya.`;
     } else {
-      container.innerHTML = `
-        <p>Anda akan melihat <strong>satu kotak menyala</strong> di dalam kotak 3×3, posisinya berganti-ganti.</p>
-        <p>Tugas Anda: bandingkan posisi kotak sekarang dengan posisi <strong>${n} langkah sebelumnya</strong>.</p>
-        <p>Kalau posisinya <strong>sama</strong> dengan ${n} langkah lalu, tekan <strong>SPASI</strong>.</p>
-        <p>Kalau berbeda, jangan tekan apa-apa dan tunggu kotak berikutnya.</p>
-      `;
-      setKeyHint(`Tekan tombol <strong>SPASI</strong> ketika posisi kotak sekarang <strong>sama</strong> dengan posisi ${n} langkah sebelumnya.`);
+      const letter = targetStim || "B";
+      targetHtml = `<div class="target-letter-display">${letter}</div>`;
+      tip = `Fokus pada huruf target "${letter}", tekan <strong>SPASI</strong> dengan cepat, dan abaikan huruf lainnya.`;
     }
-
-    const tipsMap = {
-      1: [
-        "Cukup mengingat satu posisi terakhir",
-        'Tanyakan: "apakah posisi ini sama dengan kotak sebelumnya?"',
-        "Kalau sama, tekan SPASI secepat mungkin",
-        "Kalau ragu, jangan tekan dulu — tunggu kotak berikutnya",
-      ],
-      2: [
-        "Simpan dua posisi terakhir, lalu perbarui terus",
-        'Tanyakan: "apakah posisi ini sama dengan dua kotak lalu?"',
-        "Jangan panik kalau kelewatan, fokus ke kotak berikutnya",
-        "Butuh konsentrasi lebih tinggi daripada 1 langkah",
-      ],
-      3: [
-        "Simpan tiga posisi terakhir dan perbarui terus-menerus",
-        'Tanyakan: "apakah posisi ini sama dengan tiga kotak lalu?"',
-        "Tingkat tersulit, kelewatan itu normal",
-        "Utamakan ketepatan daripada kecepatan",
-      ],
-    };
-    const tips = tipsMap[n] || [
-      `Ingat ${n} posisi terakhir, lalu bandingkan dengan posisi yang baru muncul`,
-      "Jangan menebak kalau tidak yakin",
-      "Kalau kelewatan, jangan mengulang manual — lanjut ke kotak berikutnya",
-      "Utamakan ketepatan daripada kecepatan",
-    ];
-    tipsContainer.innerHTML = `
-      <h3>Tips ${n}-back (mode kotak 3×3)</h3>
-      <ul>${tips.map((t) => `<li>${t}</li>`).join("")}</ul>
-      <p class="note">Tidak ada posisi yang muncul ulang tanpa alasan: kalau posisinya sama dengan ${n} langkah lalu, itu memang <strong>harus</strong> ditekan SPASI.</p>
+    container.innerHTML = `
+      <p>${isGrid ? "Anda akan melihat satu kotak menyala di dalam kotak 3×3." : "Anda akan melihat huruf muncul satu per satu di layar."}</p>
+      <p>Tekan <strong>SPASI</strong> jika ${isGrid ? "kotak target menyala" : "muncul huruf target"}:</p>
+      ${targetHtml}
+      <p>Jika ${unit} lain ${isGrid ? "yang menyala" : "muncul"}, jangan tekan apa-apa dan tunggu ${unit} berikutnya.</p>
     `;
   } else {
-    // ---------- Instruksi lama (huruf/angka), tetap dipertahankan ----------
-    if (n === 0) {
-      container.innerHTML = `
-        <p>Anda akan melihat huruf muncul satu per satu di layar.</p>
-        <p>Tekan <strong>SPASI</strong> setiap kali huruf yang muncul adalah <strong>huruf target</strong> berikut:</p>
-        <div class="target-letter-display">${targetStim || "B"}</div>
-        <p>Jika huruf lain muncul, <strong>jangan tekan apa-apa</strong> dan tunggu huruf berikutnya.</p>
-      `;
-      setKeyHint("Tekan tombol <strong>SPASI</strong> ketika huruf yang muncul adalah <strong>huruf target</strong>.");
-    } else {
-      container.innerHTML = `
-        <p>Anda akan melihat huruf muncul satu per satu di layar.</p>
-        <p>Tugas Anda: bandingkan huruf sekarang dengan huruf <strong>${n} langkah sebelumnya</strong>.</p>
-        <p>Jika huruf sekarang <strong>sama</strong> dengan yang muncul ${n} langkah sebelumnya, tekan <strong>SPASI</strong>.</p>
-        <p>Jika berbeda, jangan tekan apa-apa dan tunggu huruf berikutnya.</p>
-      `;
-      setKeyHint(`Tekan tombol <strong>SPASI</strong> ketika huruf sekarang <strong>sama</strong> dengan huruf ${n} langkah sebelumnya.`);
-    }
-
-    const tipsMap = {
-      0: [
-        "Fokus hanya pada huruf target yang ditampilkan di atas",
-        "Jangan pedulikan huruf-huruf lain yang bukan target",
-        "Tekan SPASI segera begitu melihat huruf target",
-        "Bangun ritme: lihat, kenali, respon",
-      ],
-      1: [
-        "Hanya ingat satu huruf terakhir",
-        'Tanyakan: "Apakah huruf ini sama dengan huruf sebelumnya?"',
-        "Bangun ritme stabil: amati, bandingkan, respon",
-        "Mode ringan untuk melatih fokus",
-      ],
-      2: [
-        "Ingat dua huruf terakhir dan update terus-menerus",
-        'Tanyakan: "Apakah huruf ini sama dengan huruf 2 langkah lalu?"',
-        "Jangan panik kalau miss, fokus pada ritme berikutnya",
-        "Butuh konsentrasi lebih tinggi dari 1-back",
-      ],
-      3: [
-        "Ingat tiga huruf terakhir dan update terus-menerus",
-        'Tanyakan: "Apakah huruf ini sama dengan huruf 3 langkah lalu?"',
-        "Tingkat tersulit, miss adalah hal normal",
-        "Fokus pada akurasi, bukan kecepatan",
-      ],
-    };
-    const tips = tipsMap[n] || tipsMap[2];
-    const title = n === 0 ? "0-Back Tips" : `${n}-Back Quick Tips`;
-    tipsContainer.innerHTML = `
-      <h3>${title}</h3>
-      <ul>${tips.map((t) => `<li>${t}</li>`).join("")}</ul>
+    const what = isGrid ? "posisi kotak" : "huruf";
+    container.innerHTML = `
+      <p>${isGrid ? "Anda akan melihat satu kotak menyala di dalam kotak 3×3, posisinya berganti-ganti." : "Anda akan melihat huruf muncul satu per satu di layar."}</p>
+      <p>Tekan <strong>SPASI</strong> jika ${what} sekarang sama dengan ${what} <strong>${n} langkah sebelumnya</strong>.</p>
+      <p>Jika berbeda, jangan tekan apa-apa dan tunggu ${unit} berikutnya.</p>
     `;
+    const tipsMap = {
+      1: `Cukup ingat satu ${unit} terakhir, lalu bandingkan dengan ${unit} yang baru muncul.`,
+      2: `Ingat dua ${unit} terakhir dan perbarui terus; kalau kelewatan, fokus ke ${unit} berikutnya.`,
+      3: `Ingat tiga ${unit} terakhir; kelewatan itu normal, utamakan ketepatan daripada kecepatan.`,
+    };
+    tip = tipsMap[n] || `Ingat ${n} ${unit} terakhir dan utamakan ketepatan daripada kecepatan.`;
   }
 
+  tipsContainer.innerHTML = `Tips: ${tip}`;
   document.getElementById("current-n-display").textContent = n;
-}
-
-function setKeyHint(html) {
-  const el = document.getElementById("key-hint-text");
-  if (el) el.innerHTML = html;
 }
 
 /** HTML sel-sel kotak 3x3 untuk pratinjau target di layar instruksi. */
