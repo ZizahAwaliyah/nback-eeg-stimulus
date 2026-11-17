@@ -96,11 +96,17 @@ class ExperimentLogger {
     return this.trials.slice();
   }
 
-  toCSV() {
-    if (!this.trials.length) return "";
-    const headers = Object.keys(this.trials[0]);
+  /** Trial satu blok saja (dipakai untuk CSV per blok). */
+  getBlockTrials(blockIndex) {
+    return this.trials.filter((t) => t.block_index === blockIndex);
+  }
+
+  /** CSV dengan kolom & urutan yang sama; `trials` default = semua blok. */
+  toCSV(trials = this.trials) {
+    if (!trials.length) return "";
+    const headers = Object.keys(trials[0]);
     const rows = [headers.join(",")];
-    this.trials.forEach((trial) => {
+    trials.forEach((trial) => {
       const row = headers
         .map((h) => {
           const v = trial[h];

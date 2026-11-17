@@ -26,6 +26,8 @@ const DEFAULT_CONFIG = {
   show_fixation: false,            // tanda "+" di tengah layar di antara stimulus
   hide_block_feedback: false,      // skor per blok disembunyikan dari partisipan
   minimal_block_screen: false,     // sembunyikan header (timer, nomor trial) & footer saat blok
+  lead_in_ms: 0,                   // jeda "+" sesudah hitung mundur, sebelum stimulus pertama (0 = langsung)
+  autosave_per_block: false,       // simpan CSV tiap blok selesai ke Data/<nama>_<tanggal>/ (Chrome/Edge)
 };
 
 // Pool stimulus per jenis. Untuk grid3x3: 9 sel, kode "r{baris}c{kolom}".
@@ -52,7 +54,8 @@ const AVAILABLE_PRESETS = [
 
 async function loadPreset(presetFile) {
   try {
-    const response = await fetch(presetFile);
+    // no-cache: preset yang baru diubah langsung terbaca, bukan versi lama dari cache browser
+    const response = await fetch(presetFile, { cache: "no-cache" });
     if (!response.ok) throw new Error(`Gagal memuat ${presetFile}`);
     const preset = await response.json();
     return { ...DEFAULT_CONFIG, ...preset };
@@ -127,6 +130,8 @@ function applyConfigToForm(config) {
   document.getElementById("show-fixation").checked = config.show_fixation === true;
   document.getElementById("hide-block-feedback").checked = config.hide_block_feedback === true;
   document.getElementById("minimal-block-screen").checked = config.minimal_block_screen === true;
+  document.getElementById("lead-in-ms").value = config.lead_in_ms ?? 0;
+  document.getElementById("autosave-per-block").checked = config.autosave_per_block === true;
 
   refreshStimulusTypeUI();
 }
@@ -159,6 +164,8 @@ function readConfigFromForm() {
     show_fixation: document.getElementById("show-fixation").checked,
     hide_block_feedback: document.getElementById("hide-block-feedback").checked,
     minimal_block_screen: document.getElementById("minimal-block-screen").checked,
+    lead_in_ms: Math.max(0, parseInt(document.getElementById("lead-in-ms").value, 10) || 0),
+    autosave_per_block: document.getElementById("autosave-per-block").checked,
   };
 }
 

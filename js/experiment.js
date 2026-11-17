@@ -72,8 +72,13 @@ class BlockRunner {
       this.clearGrid();
     }
 
+    // Jeda awal: tanda "+" sebentar sebelum stimulus pertama, supaya partisipan
+    // tidak kaget ketika huruf langsung muncul begitu hitung mundur mencapai 0.
+    // Penanda "start" blok di atas tetap dicatat di titik yang sama seperti sebelumnya.
+    const leadInMs = Math.max(0, parseInt(this.config.lead_in_ms, 10) || 0);
+
     // Timer durasi blok
-    const totalMs = this.sequence.length * this.config.isi_ms;
+    const totalMs = this.sequence.length * this.config.isi_ms + leadInMs;
     const endTime = Date.now() + totalMs;
     this.timerInterval = setInterval(() => {
       const remaining = Math.max(0, endTime - Date.now());
@@ -117,7 +122,14 @@ class BlockRunner {
 
     return new Promise((resolve) => {
       this.onComplete = resolve;
-      this.runNextTrial();
+      if (leadInMs > 0) {
+        // Respons selama jeda diabaikan (currentStimulusOnset masih null).
+        if (isGrid) this.clearGrid();
+        else this.showFixation();
+        this.isiTimeout = setTimeout(() => this.runNextTrial(), leadInMs);
+      } else {
+        this.runNextTrial();
+      }
     });
   }
 

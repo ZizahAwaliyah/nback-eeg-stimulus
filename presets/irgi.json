@@ -16,5 +16,7 @@
   "show_fixation": true,
   "hide_block_feedback": true,
   "minimal_block_screen": true,
+  "lead_in_ms": 1000,
+  "autosave_per_block": true,
   "enable_click_response": false
 }

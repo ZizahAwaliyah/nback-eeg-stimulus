@@ -134,6 +134,8 @@ Vercel akan re-deploy otomatis.
 | `show_fixation` | boolean | true | Tanda `+` di tengah layar di antara stimulus (huruf/angka) |
 | `hide_block_feedback` | boolean | true | Skor per blok tidak diperlihatkan ke partisipan (tetap ada di layar akhir dan berkas) |
 | `minimal_block_screen` | boolean | true | Saat blok, sembunyikan timer, nomor trial, dan teks bawah |
+| `lead_in_ms` | number | 1000 | Jeda tanda `+` sesudah hitung mundur, sebelum stimulus pertama (latihan & blok). `0` = stimulus langsung muncul. Penanda `start` blok tetap dicatat sesaat setelah hitung mundur |
+| `autosave_per_block` | boolean | true | Simpan satu CSV setiap blok selesai ke `Data/<nama>_<DD-MM-YYYY>/` di folder yang dipilih di layar setup (Chrome/Edge). Kolom CSV sama dengan CSV gabungan |
 
 Opsi tambahan di atas default-nya mati (`false`/`0`/`"per_block"`), jadi preset lama berperilaku sama seperti sebelumnya. Semuanya juga bisa diubah di kartu **4. Opsi Tambahan** di layar setup.
 

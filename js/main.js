@@ -75,7 +75,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (presetFile === "custom") return;
     const config = await loadPreset(presetFile);
     applyConfigToForm(config);
+    updateSetupSummary();
   });
+
+  // Panel "Ringkasan Sesi" di layar setup ikut berubah setiap kali form diisi
+  const setupScreen = document.getElementById("screen-setup");
+  setupScreen.addEventListener("input", updateSetupSummary);
+  setupScreen.addEventListener("change", updateSetupSummary);
+
+  // Folder penyimpanan otomatis (diingat dari sesi sebelumnya kalau ada)
+  document.getElementById("btn-pick-data-root").addEventListener("click", pickDataRoot);
+  restoreDataRoot().then(updateSetupSummary);
 
   document.getElementById("stimulus-type").addEventListener("change", refreshStimulusTypeUI);
   document.getElementById("n-levels").addEventListener("input", refreshStimulusTypeUI);
@@ -118,8 +128,10 @@ document.addEventListener("DOMContentLoaded", () => {
     presetSelect.value = AVAILABLE_PRESETS[0].file;
     loadPreset(AVAILABLE_PRESETS[0].file).then((config) => {
       applyConfigToForm(config);
+      updateSetupSummary();
     });
   }
+  updateSetupSummary();
 });
 
 // ------------ Setup: Start Experiment ------------
@@ -157,6 +169,22 @@ async function handleStartExperiment() {
 
   if (errBox) errBox.style.display = "none";
 
+  // Izin menulis ke folder harus diminta LANGSUNG dari klik ini (sebelum await lain),
+  // kalau tidak browser menolak menampilkan dialog izin.
+  const autosave = config.autosave_per_block && config.stimulus_type !== "grid3x3";
+  if (autosave) {
+    const granted = dataRootHandle ? await ensureDataRootPermission() : false;
+    if (!granted) {
+      if (errBox) {
+        errBox.style.display = "block";
+        errBox.innerHTML = folderPickerSupported()
+          ? "<strong>Simpan otomatis aktif:</strong> pilih lokasi folder Data dan izinkan browser menulis ke sana, lalu klik Mulai lagi."
+          : "<strong>Simpan otomatis aktif</strong>, tetapi browser ini tidak mendukungnya. Pakai Chrome/Edge, atau matikan opsi simpan otomatis.";
+      }
+      return;
+    }
+  }
+
   const warnings = getConfigWarnings(config);
   if (warnings.length) {
     const ok = confirm(
@@ -172,6 +200,19 @@ async function handleStartExperiment() {
     localStorage.setItem("nback_eeg_config", JSON.stringify(config));
     window.location.href = "nback-3x3.html";
     return;
+  }
+
+  sessionFileBase = buildSessionFileBase(config);
+  if (autosave) {
+    try {
+      await prepareParticipantFolder(config);
+    } catch (err) {
+      if (errBox) {
+        errBox.style.display = "block";
+        errBox.innerHTML = `<strong>Folder Data tidak bisa dibuat:</strong> ${err.message}`;
+      }
+      return;
+    }
   }
 
   currentConfig = config;
@@ -476,6 +517,8 @@ async function runCurrentBlock() {
 
   const runner = new BlockRunner(sequence, currentConfig, currentBlockIdx, n, currentLogger, false);
   await runner.start();
+  // Data blok ini langsung ditulis ke folder, tidak menunggu akhir sesi
+  await autosaveBlock(currentBlockIdx);
 
   exitFullscreen();
   if (currentConfig.hide_block_feedback) {
@@ -579,53 +622,14 @@ function afterBlockPost() {
 }
 
 // ------------ Final Summary ------------
-
-function buildSummaryHtml() {
-  let html = '<div class="summary-blocks">';
-  blockOrder.forEach((n, idx) => {
-    const s = currentLogger.getBlockSummary(idx);
-    html += `
-      <div class="summary-block">
-        <h3>Blok ${idx + 1}: ${n}-back</h3>
-        <div class="summary-stats">
-          <div class="stat"><div class="stat-label">Akurasi</div><div class="stat-value">${(s.accuracy * 100).toFixed(1)}%</div></div>
-          <div class="stat"><div class="stat-label">Hit</div><div class="stat-value">${s.hits}/${s.targets}</div></div>
-          <div class="stat"><div class="stat-label">Miss</div><div class="stat-value">${s.misses}</div></div>
-          <div class="stat"><div class="stat-label">False alarm</div><div class="stat-value">${s.false_alarms}</div></div>
-          <div class="stat"><div class="stat-label">Rata-rata RT</div><div class="stat-value">${s.mean_rt_ms ?? "N/A"} ms</div></div>
-          <div class="stat"><div class="stat-label">d'</div><div class="stat-value">${s.dprime ?? "N/A"}</div></div>
-        </div>
-      </div>
-    `;
-  });
-  html += "</div>";
-
-  const trials = currentLogger.getAllTrials();
-  const withResponse = trials.filter((t) => t.response).length;
-  const correct = trials.filter((t) => t.correct === true || t.correct === "true").length;
-  const rts = trials.map((t) => parseFloat(t.reaction_time_ms)).filter((v) => !isNaN(v));
-  const meanRt = rts.length ? Math.round(rts.reduce((a, b) => a + b, 0) / rts.length) : null;
-
-  html += `
-    <table class="summary-table">
-      <tr><td>Total trial</td><td><strong>${trials.length}</strong></td></tr>
-      <tr><td>Trial dengan respons</td><td><strong>${withResponse}</strong> (${
-        trials.length ? ((withResponse / trials.length) * 100).toFixed(1) : 0
-      }%)</td></tr>
-      <tr><td>Akurasi keseluruhan</td><td><strong>${
-        trials.length ? ((correct / trials.length) * 100).toFixed(1) : 0
-      }%</strong></td></tr>
-      <tr><td>Rata-rata RT keseluruhan</td><td><strong>${meanRt ?? "N/A"} ms</strong></td></tr>
-    </table>
-  `;
-  return html;
-}
+// Isi layar hasil (kartu angka, grafik, tabel, penanda waktu) ada di dashboard.js.
 
 function showFinishedScreen() {
   experimentStarted = false;
   sessionFinished = true;
-  document.getElementById("summary-content").innerHTML = buildSummaryHtml();
-  document.getElementById("btn-download-csv").classList.add("btn-pulse");
+  buildResultDashboard();
+  renderExportPanel();
+  document.getElementById("btn-finish-session").classList.add("btn-pulse");
   showScreen("screen-finished");
 }
 
@@ -721,7 +725,7 @@ async function finishSession() {
     return;
   }
 
-  if (!window.showDirectoryPicker) {
+  if (!participantDirHandle && !window.showDirectoryPicker) {
     setStatus(
       "Browser ini belum mendukung pemilihan folder otomatis. Gunakan tombol Download CSV / JSON / " +
         `Laporan di layar Sesi Selesai, lalu letakkan berkasnya di dalam folder bernama ${folderName}.`
@@ -731,15 +735,35 @@ async function finishSession() {
   }
 
   try {
-    const rootHandle = await window.showDirectoryPicker({ mode: "readwrite" });
-    const folder = await rootHandle.getDirectoryHandle(folderName, { create: true });
+    // Simpan otomatis aktif → tulis ke folder responden yang sama (Data/<nama>_<tanggal>/)
+    // tanpa memilih folder lagi. Kalau tidak, perilaku lama: pilih folder, buat folder baru.
+    let folder, folderLabel, names;
+    if (participantDirHandle) {
+      folder = participantDirHandle;
+      folderLabel = participantFolderLabel;
+      names = {
+        csv: `${sessionFileBase}_semua-blok.csv`,
+        json: `${sessionFileBase}.json`,
+        txt: `${sessionFileBase}_laporan.txt`,
+      };
+    } else {
+      const rootHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+      folder = await rootHandle.getDirectoryHandle(folderName, { create: true });
+      folderLabel = folderName;
+      names = {
+        csv: `${folderName}_nback.csv`,
+        json: `${folderName}_nback.json`,
+        txt: `${folderName}_laporan.txt`,
+      };
+    }
 
-    await writeFileToFolder(folder, `${folderName}_nback.csv`, currentLogger.toCSV());
-    await writeFileToFolder(folder, `${folderName}_nback.json`, currentLogger.toJSON());
-    await writeFileToFolder(folder, `${folderName}_laporan.txt`, currentLogger.buildReportText());
+    await writeFileToFolder(folder, names.csv, currentLogger.toCSV());
+    await writeFileToFolder(folder, names.json, currentLogger.toJSON());
+    await writeFileToFolder(folder, names.txt, currentLogger.buildReportText());
 
+    const blockFiles = autosaveLog.filter((e) => e.ok).map((e) => `  - ${e.file}`);
     const checklist = [
-      `Folder dokumentasi : ${folderName}`,
+      `Folder dokumentasi : ${folderLabel}`,
       `Dibuat pada        : ${localTimestamp()}`,
       `Nama partisipan    : ${currentConfig?.participant_name || "-"}`,
       `Peneliti           : ${currentConfig?.researcher || "-"}`,
@@ -748,9 +772,10 @@ async function finishSession() {
       `Kunjungan ke-      : P${sessionVisitNumber}`,
       "",
       "Berkas yang SUDAH tersimpan otomatis di folder ini:",
-      `  - ${folderName}_nback.csv`,
-      `  - ${folderName}_nback.json`,
-      `  - ${folderName}_laporan.txt`,
+      ...blockFiles,
+      `  - ${names.csv}`,
+      `  - ${names.json}`,
+      `  - ${names.txt}`,
       "",
       "Berkas yang masih harus ditambahkan peneliti:",
       ...documentationList.map(
@@ -761,7 +786,7 @@ async function finishSession() {
     ].join("\n");
 
     await writeFileToFolder(folder, "CHECKLIST_DOKUMENTASI.txt", checklist);
-    setStatus(`Berkas sesi sudah tersimpan di folder "${folderName}".`);
+    setStatus(`Berkas sesi sudah tersimpan di folder "${folderLabel}".`);
   } catch (err) {
     if (err && err.name === "AbortError") {
       setStatus(
@@ -774,10 +799,4 @@ async function finishSession() {
   }
   showScreen("screen-documentation");
 }
-
-async function writeFileToFolder(dirHandle, filename, content) {
-  const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(content);
-  await writable.close();
-}
+// writeFileToFolder() ada di storage.js
