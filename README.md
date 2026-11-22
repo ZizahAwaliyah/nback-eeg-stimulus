@@ -27,6 +27,7 @@ nback-eeg-stimulus/
 │   └── main.js           # orchestrator
 ├── presets/
 │   ├── azizah.json       # preset per peneliti
+│   ├── irgi.json
 │   └── template.json
 ├── vercel.json           # config deploy
 └── README.md
@@ -122,19 +123,36 @@ Vercel akan re-deploy otomatis.
 | `isi_ms` | number | 2500 | Interstimulus interval dalam ms |
 | `stimulus_duration_ms` | number | 500 | Berapa lama stimulus muncul di layar |
 | `target_ratio` | number | 0.25 | Proporsi target (0-1) |
-| `stimulus_type` | string | "letters" | "letters" atau "digits" |
+| `stimulus_type` | string | "letters" | "letters", "digits", atau "grid3x3" |
 | `enable_fatigue_scale` | boolean | true | Aktifkan skala kelelahan KSS |
+| `condition` | string | "menaik" | Urutan blok: "menaik" atau "acak" |
+| `enable_practice` | boolean | true | Aktifkan latihan (data latihan tidak dicatat) |
+| `practice_trials` | number | 15 | Trial latihan per tingkat. `0` = sepanjang blok sebenarnya |
+| `practice_placement` | string | "before_session" | `"per_block"` = latihan tepat sebelum tiap blok; `"before_session"` = semua latihan di awal sesi |
+| `rest_seconds` | number | 120 | Istirahat terhitung mundur di antara blok. `0` = tanpa timer |
+| `dark_theme` | boolean | true | Latar abu-abu gelap selama sesi |
+| `show_fixation` | boolean | true | Tanda `+` di tengah layar di antara stimulus (huruf/angka) |
+| `hide_block_feedback` | boolean | true | Skor per blok tidak diperlihatkan ke partisipan (tetap ada di layar akhir dan berkas) |
+| `minimal_block_screen` | boolean | true | Saat blok, sembunyikan timer, nomor trial, dan teks bawah |
+| `lead_in_ms` | number | 1000 | Jeda tanda `+` sesudah hitung mundur, sebelum stimulus pertama (latihan & blok). `0` = stimulus langsung muncul. Penanda `start` blok tetap dicatat sesaat setelah hitung mundur |
+| `motion_videos` | boolean | true | Video instruksi bersuara `motion/instruksi-<n>back-sound.mp4`, berulang, tidak layar penuh (kalau browser menolak suara, diputar tanpa suara): (1) di layar instruksi sebelum latihan 0-back, (2) di bawah timer istirahat antarblok untuk tingkat blok berikutnya (butuh `rest_seconds` > 0). Berhenti otomatis saat pindah layar |
+| `show_practice_feedback` | boolean | true | Setelah tiap latihan, tampilkan skor (target ditekan, terlewat, salah tekan) dengan tombol Ulangi/Lanjut. Data latihan tetap **tidak** masuk CSV/JSON |
+| `autosave_per_block` | boolean | true | Simpan satu CSV setiap blok selesai ke `Data/<nama>_<DD-MM-YYYY>/` di folder yang dipilih di layar setup (Chrome/Edge). Begitu sesi selesai, CSV gabungan, JSON, laporan, dan checklist juga otomatis tersimpan ke folder yang sama. Kolom CSV sama dengan CSV gabungan |
+
+Opsi tambahan di atas default-nya mati (`false`/`0`/`"per_block"`), jadi preset lama berperilaku sama seperti sebelumnya. Semuanya juga bisa diubah di kartu **4. Opsi Tambahan** di layar setup.
 
 ## Alur Eksperimen
 
 1. **Setup** — pilih preset, isi identitas partisipan/sesi/kondisi
-2. **Instruksi** — layar penjelasan tugas untuk partisipan
-3. **Skala Kelelahan (opsional)** — KSS 1-9 sebelum blok
-4. **Countdown 3-2-1** — penanda waktu untuk sinkron Mind Monitor
-5. **Blok Eksperimen** — stimulus muncul, partisipan tekan SPASI jika cocok
-6. **Skala Kelelahan (opsional)** — KSS 1-9 sesudah blok
-7. **Ulang** langkah 2-6 untuk tiap tingkat N
-8. **Ringkasan Kinerja & Download CSV**
+2. **Latihan awal (opsional, `practice_placement: "before_session"`)** — instruksi + latihan untuk tiap tingkat, berurutan
+3. **Instruksi** — layar penjelasan tugas untuk partisipan (mulai blok ke-2, digabung dengan hitung mundur istirahat bila `rest_seconds` > 0)
+4. **Latihan (opsional, `practice_placement: "per_block"`)**
+5. **Skala Kelelahan (opsional)** — KSS 1-9 sebelum blok
+6. **Countdown 3-2-1** — penanda waktu untuk sinkron Mind Monitor; untuk 0-back sekaligus menampilkan huruf sasaran
+7. **Blok Eksperimen** — stimulus muncul, partisipan tekan SPASI jika cocok
+8. **Ringkasan blok** (dilewati bila `hide_block_feedback`) dan **Skala Kelelahan** sesudah blok (opsional)
+9. **Ulang** langkah 3-8 untuk tiap tingkat N
+10. **Ringkasan Kinerja & Download CSV**
 
 ## Sinkronisasi dengan Mind Monitor
 
@@ -158,33 +176,47 @@ Peneliti (bukan partisipan) menekan Marker di Mind Monitor tepat saat countdown 
 
 ### Saat Analisis
 
-File CSV dari web berisi kolom `timestamp_iso` untuk setiap trial. File CSV dari Mind Monitor berisi kolom `TimeStamp`. Cocokkan keduanya berdasarkan waktu blok mulai/selesai.
+Pakai kolom **`timestamp_local`**, bukan `timestamp_iso`. `timestamp_local` adalah jam lokal laptop dengan format yang sama dengan kolom `TimeStamp` Mind Monitor (`YYYY-MM-DD HH:MM:SS.mmm`). `timestamp_iso` adalah jam UTC (berakhiran `Z`); kalau dibandingkan langsung dengan `TimeStamp` Mind Monitor hasilnya meleset sebanyak selisih zona waktu, dan pandas menolak membandingkan waktu yang punya zona dengan yang tidak.
+
+Batas blok paling tepat diambil dari `block_markers` di berkas JSON (event `start` dan `end`), karena trial terakhir baru berakhir satu ISI setelah stimulusnya muncul.
 
 Contoh Python:
 ```python
+import json
 import pandas as pd
 
-web_log = pd.read_csv("P01_S1_menaik_2026-09-28T09-15-30.csv")
-eeg_log = pd.read_csv("MuseS_2026-09-28--09-15-15.csv")
+with open("Budi_S1_menaik_20260928_091530.json") as f:
+    sesi = json.load(f)
+eeg = pd.read_csv("mindMonitor_2026-09-28--09-15-15.csv")
+eeg["TimeStamp"] = pd.to_datetime(eeg["TimeStamp"])
 
-# Ambil blok pertama dari web log
-block1 = web_log[web_log["block_index"] == 0]
-block1_start = pd.to_datetime(block1["timestamp_iso"].min())
-block1_end = pd.to_datetime(block1["timestamp_iso"].max())
+markers = pd.DataFrame(sesi["block_markers"])
+markers["timestamp"] = pd.to_datetime(markers["timestamp"])
 
-# Segmentasi EEG berdasarkan waktu
-eeg_log["TimeStamp"] = pd.to_datetime(eeg_log["TimeStamp"])
-eeg_block1 = eeg_log[(eeg_log["TimeStamp"] >= block1_start) & (eeg_log["TimeStamp"] <= block1_end)]
+for blok, m in markers.groupby("block_index"):
+    mulai = m.loc[m["event"] == "start", "timestamp"].iloc[0]
+    selesai = m.loc[m["event"] == "end", "timestamp"].iloc[0]
+    n = m["block_n"].iloc[0]
+    eeg_blok = eeg[(eeg["TimeStamp"] >= mulai) & (eeg["TimeStamp"] < selesai)]
+    print(f"blok {blok} ({n}-back): {len(eeg_blok)} baris EEG")
+```
+
+Kalau hanya punya CSV, `timestamp_local` trial pertama tiap blok adalah waktu stimulus pertama muncul:
+```python
+web = pd.read_csv("Budi_S1_menaik_20260928_091530.csv")
+web["timestamp_local"] = pd.to_datetime(web["timestamp_local"])
+mulai_blok = web.groupby("block_index")["timestamp_local"].min()
 ```
 
 ## Format File Output
 
 ### CSV (respons trial-level)
 
-Kolom yang tersedia:
-- `timestamp_iso` — waktu stimulus muncul (ISO 8601 UTC)
+Kolom yang tersedia (urutan sesuai berkas):
+- `timestamp_local` — waktu stimulus muncul, jam lokal laptop, format sama dengan `TimeStamp` Mind Monitor
+- `timestamp_iso` — waktu yang sama dalam UTC (ISO 8601, berakhiran `Z`)
 - `researcher` — nama peneliti
-- `participant_id` — kode partisipan
+- `participant_name` — nama partisipan
 - `session` — S1 atau S2
 - `condition` — menaik atau acak
 - `block_index` — indeks blok (0, 1, 2, ...)
@@ -192,8 +224,8 @@ Kolom yang tersedia:
 - `trial_num` — nomor trial dalam blok
 - `stimulus` — huruf/angka yang muncul
 - `is_target` — true/false apakah trial ini target
-- `response` — spacebar atau kosong
-- `response_ts` — waktu respons (ISO 8601)
+- `response` — `spacebar`, `click`, atau kosong
+- `response_ts` — waktu respons, jam lokal laptop (format sama dengan `timestamp_local`)
 - `reaction_time_ms` — waktu reaksi dari onset stimulus
 - `correct` — true/false
 
@@ -205,9 +237,12 @@ Format:
   "session_metadata": { ... },
   "trials": [ ... ],
   "fatigue_ratings": [ ... ],
-  "block_markers": [ ... ]
+  "block_markers": [ ... ],
+  "rest_periods": [ ... ]
 }
 ```
+
+`session_metadata.target_stimulus_per_block` mencatat huruf sasaran tiap blok 0-back. `rest_periods` mencatat awal dan akhir istirahat antarblok (kosong kalau `rest_seconds` = 0).
 
 ## Kolaborasi
 

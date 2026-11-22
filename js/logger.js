@@ -20,6 +20,12 @@ class ExperimentLogger {
     this.fatigueRatings = [];
     this.blockMarkers = [];
     this.targetStimPerBlock = {}; // 0-back: stimulus target tetap per blok
+    this.restPeriods = [];        // istirahat antarblok (waktu lokal awal & akhir)
+  }
+
+  /** Objek dicatat langsung; kolom `end` diisi saat hitung mundur istirahat habis. */
+  logRest(rest) {
+    this.restPeriods.push(rest);
   }
 
   logTrial(trial) {
@@ -56,33 +62,7 @@ class ExperimentLogger {
 
   getBlockSummary(blockIndex) {
     const blockTrials = this.trials.filter((t) => t.block_index === blockIndex);
-    const targets = blockTrials.filter((t) => t.is_target);
-    const nonTargets = blockTrials.filter((t) => !t.is_target);
-    const hits = targets.filter((t) => t.response === "spacebar" && t.correct);
-    const misses = targets.filter((t) => t.response !== "spacebar");
-    const falseAlarms = nonTargets.filter((t) => t.response === "spacebar");
-    const correctRejections = nonTargets.filter((t) => t.response !== "spacebar");
-    const rts = hits.map((t) => parseFloat(t.reaction_time_ms)).filter((rt) => !isNaN(rt));
-    const meanRT = rts.length ? Math.round(rts.reduce((a, b) => a + b, 0) / rts.length) : null;
-    const total = blockTrials.length;
-    const accuracy = total ? (hits.length + correctRejections.length) / total : 0;
-    const hitRate = targets.length ? hits.length / targets.length : 0;
-    const faRate = nonTargets.length ? falseAlarms.length / nonTargets.length : 0;
-
-    return {
-      block_n: blockTrials[0]?.block_n,
-      total_trials: total,
-      targets: targets.length,
-      hits: hits.length,
-      misses: misses.length,
-      false_alarms: falseAlarms.length,
-      correct_rejections: correctRejections.length,
-      accuracy: accuracy,
-      hit_rate: hitRate,
-      false_alarm_rate: faRate,
-      mean_rt_ms: meanRT,
-      dprime: computeDPrime(hitRate, faRate),
-    };
+    return { block_n: blockTrials[0]?.block_n, ...summarizeTrials(blockTrials) };
   }
 
   /** Semua trial (tanpa latihan) — dipakai untuk ringkasan akhir. */
@@ -90,11 +70,17 @@ class ExperimentLogger {
     return this.trials.slice();
   }
 
-  toCSV() {
-    if (!this.trials.length) return "";
-    const headers = Object.keys(this.trials[0]);
+  /** Trial satu blok saja (dipakai untuk CSV per blok). */
+  getBlockTrials(blockIndex) {
+    return this.trials.filter((t) => t.block_index === blockIndex);
+  }
+
+  /** CSV dengan kolom & urutan yang sama; `trials` default = semua blok. */
+  toCSV(trials = this.trials) {
+    if (!trials.length) return "";
+    const headers = Object.keys(trials[0]);
     const rows = [headers.join(",")];
-    this.trials.forEach((trial) => {
+    trials.forEach((trial) => {
       const row = headers
         .map((h) => {
           const v = trial[h];
@@ -124,6 +110,7 @@ class ExperimentLogger {
         trials: this.trials,
         fatigue_ratings: this.fatigueRatings,
         block_markers: this.blockMarkers,
+        rest_periods: this.restPeriods,
       },
       null,
       2
@@ -179,6 +166,16 @@ class ExperimentLogger {
       "Kalau peneliti yakin partisipan menekan SPASI, cek apakah fokus ada di jendela browser " +
         "(fullscreen) saat kejadian."
     );
+    if (this.restPeriods.length) {
+      lines.push("");
+      lines.push("Istirahat antarblok:");
+      this.restPeriods.forEach((r) => {
+        lines.push(
+          `  sebelum blok ${r.before_block_index + 1} (${r.before_block_n}-back): ` +
+            `${r.start} s/d ${r.end || "(tidak selesai)"}, rencana ${r.planned_seconds} detik`
+        );
+      });
+    }
     if (this.fatigueRatings.length) {
       lines.push("");
       lines.push("Skala kelelahan (KSS):");
@@ -216,6 +213,40 @@ class ExperimentLogger {
       "text/plain"
     );
   }
+}
+
+/**
+ * Skor dari daftar trial ({is_target, response, reaction_time_ms, correct}).
+ * Dipakai untuk ringkasan blok (data logger) DAN skor latihan (runner.results,
+ * yang tidak pernah masuk logger), supaya rumusnya sama persis.
+ */
+function summarizeTrials(trials) {
+  const targets = trials.filter((t) => t.is_target);
+  const nonTargets = trials.filter((t) => !t.is_target);
+  const hits = targets.filter((t) => t.response === "spacebar" && t.correct);
+  const misses = targets.filter((t) => t.response !== "spacebar");
+  const falseAlarms = nonTargets.filter((t) => t.response === "spacebar");
+  const correctRejections = nonTargets.filter((t) => t.response !== "spacebar");
+  const rts = hits.map((t) => parseFloat(t.reaction_time_ms)).filter((rt) => !isNaN(rt));
+  const meanRT = rts.length ? Math.round(rts.reduce((a, b) => a + b, 0) / rts.length) : null;
+  const total = trials.length;
+  const accuracy = total ? (hits.length + correctRejections.length) / total : 0;
+  const hitRate = targets.length ? hits.length / targets.length : 0;
+  const faRate = nonTargets.length ? falseAlarms.length / nonTargets.length : 0;
+
+  return {
+    total_trials: total,
+    targets: targets.length,
+    hits: hits.length,
+    misses: misses.length,
+    false_alarms: falseAlarms.length,
+    correct_rejections: correctRejections.length,
+    accuracy: accuracy,
+    hit_rate: hitRate,
+    false_alarm_rate: faRate,
+    mean_rt_ms: meanRT,
+    dprime: computeDPrime(hitRate, faRate),
+  };
 }
 
 /** Buang karakter yang tidak aman untuk nama file (spasi → "_"). */

@@ -17,6 +17,19 @@ const DEFAULT_CONFIG = {
   practice_full_countdown: true, // latihan juga pakai countdown 3-2-1
   randomize_grid_layout: false,  // acak posisi sel di layar (analisis harus pakai urutan tampil)
   enable_click_response: true,   // SPASI + klik/tap sel di layar
+
+  // --- Opsi tampilan & alur (default = perilaku lama, supaya preset lain tidak berubah) ---
+  practice_placement: "per_block", // "per_block" = latihan tepat sebelum tiap blok;
+                                   // "before_session" = semua latihan di awal, sebelum blok 1
+  rest_seconds: 0,                 // istirahat terhitung mundur di antara blok (0 = tanpa timer)
+  dark_theme: false,               // latar gelap selama sesi (layar setup tetap terang)
+  show_fixation: false,            // tanda "+" di tengah layar di antara stimulus
+  hide_block_feedback: false,      // skor per blok disembunyikan dari partisipan
+  minimal_block_screen: false,     // sembunyikan header (timer, nomor trial) & footer saat blok
+  lead_in_ms: 0,                   // jeda "+" sesudah hitung mundur, sebelum stimulus pertama (0 = langsung)
+  autosave_per_block: false,       // simpan CSV tiap blok + berkas gabungan di akhir sesi ke Data/<nama>_<tanggal>/ (Chrome/Edge)
+  show_practice_feedback: false,   // tampilkan skor tiap latihan (+ tombol ulangi); data latihan tetap tidak dicatat
+  motion_videos: false,            // video bersuara motion/instruksi-<n>back-sound.mp4: sebelum latihan 0-back & di bawah timer istirahat
 };
 
 // Pool stimulus per jenis. Untuk grid3x3: 9 sel, kode "r{baris}c{kolom}".
@@ -37,12 +50,18 @@ const AVAILABLE_PRESETS = [
   { id: "mutiah", name: "Mutiah (1/2/3-back, 4 menit, kotak 3x3)", file: "presets/mutiah.json" },
   { id: "mutiah-groundtruth", name: "Mutiah + Ground Truth (0/1/2/3-back, 4 menit, kotak 3x3)", file: "presets/mutiah_0123.json" },
   { id: "azizah", name: "Azizah (0/1/2-back, 4 menit)", file: "presets/azizah.json" },
+  { id: "irgi", name: "Irgi (0/1/2/3-back, 3 menit, huruf, layar gelap)", file: "presets/irgi.json" },
+  { id: "desember-semhas", name: "Desember Semhas (0/1/2/3-back, 4 menit, huruf, semua opsi aktif)", file: "presets/desember-semhas.json" },
   { id: "template", name: "Template Kosong (edit sesuai kebutuhan)", file: "presets/template.json" },
 ];
 
+// Preset yang otomatis terpilih saat halaman dibuka
+const DEFAULT_PRESET_ID = "desember-semhas";
+
 async function loadPreset(presetFile) {
   try {
-    const response = await fetch(presetFile);
+    // no-cache: preset yang baru diubah langsung terbaca, bukan versi lama dari cache browser
+    const response = await fetch(presetFile, { cache: "no-cache" });
     if (!response.ok) throw new Error(`Gagal memuat ${presetFile}`);
     const preset = await response.json();
     return { ...DEFAULT_CONFIG, ...preset };
@@ -109,6 +128,19 @@ function applyConfigToForm(config) {
   const clickResp = document.getElementById("enable-click-response");
   if (clickResp) clickResp.checked = config.enable_click_response !== false;
 
+  if (config.condition) document.getElementById("condition").value = config.condition;
+  document.getElementById("practice-trials").value = config.practice_trials ?? 0;
+  document.getElementById("practice-placement").value = config.practice_placement || "per_block";
+  document.getElementById("rest-seconds").value = config.rest_seconds ?? 0;
+  document.getElementById("dark-theme").checked = config.dark_theme === true;
+  document.getElementById("show-fixation").checked = config.show_fixation === true;
+  document.getElementById("hide-block-feedback").checked = config.hide_block_feedback === true;
+  document.getElementById("minimal-block-screen").checked = config.minimal_block_screen === true;
+  document.getElementById("lead-in-ms").value = config.lead_in_ms ?? 0;
+  document.getElementById("autosave-per-block").checked = config.autosave_per_block === true;
+  document.getElementById("show-practice-feedback").checked = config.show_practice_feedback === true;
+  document.getElementById("motion-videos").checked = config.motion_videos === true;
+
   refreshStimulusTypeUI();
 }
 
@@ -129,10 +161,21 @@ function readConfigFromForm() {
     stimulus_type: document.getElementById("stimulus-type").value,
     enable_fatigue_scale: document.getElementById("enable-fatigue").checked,
     enable_practice: document.getElementById("enable-practice").checked,
-    practice_trials: 5,
+    // 0 atau kosong = latihan sepanjang blok sebenarnya
+    practice_trials: parseInt(document.getElementById("practice-trials").value, 10) || 0,
+    practice_placement: document.getElementById("practice-placement").value,
     practice_full_countdown: true,
     randomize_grid_layout: randomizeEl ? randomizeEl.checked : false,
     enable_click_response: clickEl ? clickEl.checked : false,
+    rest_seconds: Math.max(0, parseInt(document.getElementById("rest-seconds").value, 10) || 0),
+    dark_theme: document.getElementById("dark-theme").checked,
+    show_fixation: document.getElementById("show-fixation").checked,
+    hide_block_feedback: document.getElementById("hide-block-feedback").checked,
+    minimal_block_screen: document.getElementById("minimal-block-screen").checked,
+    lead_in_ms: Math.max(0, parseInt(document.getElementById("lead-in-ms").value, 10) || 0),
+    autosave_per_block: document.getElementById("autosave-per-block").checked,
+    show_practice_feedback: document.getElementById("show-practice-feedback").checked,
+    motion_videos: document.getElementById("motion-videos").checked,
   };
 }
 
@@ -155,6 +198,12 @@ function validateConfig(config) {
   }
   if (isNaN(config.target_ratio) || config.target_ratio <= 0 || config.target_ratio >= 0.9) {
     errors.push("Rasio target harus antara 0 dan 0,9 (contoh: 0,25)");
+  }
+  if (config.enable_practice && config.practice_trials > 0) {
+    const maxN = Math.max(...config.n_levels);
+    if (config.practice_trials <= maxN) {
+      errors.push(`Trial latihan minimal ${maxN + 1} supaya ${maxN}-back punya target`);
+    }
   }
   return errors;
 }

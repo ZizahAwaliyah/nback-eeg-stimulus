@@ -33,6 +33,9 @@ class BlockRunner {
     this.keyListener = null;
     this.gridCellListener = null;
     this.onComplete = null;
+    // Hasil tiap trial di memori runner ini saja (dipakai untuk skor latihan).
+    // Latihan TIDAK pernah dikirim ke logger, jadi tidak masuk CSV/JSON.
+    this.results = [];
   }
 
   async start() {
@@ -53,18 +56,32 @@ class BlockRunner {
     document.getElementById("block-info-total").textContent = this.sequence.length;
     document.getElementById("block-n-back-display").textContent = this.blockDescription();
 
+    // Layar blok minimal: hanya stimulus (dan fiksasi) yang tampil, supaya tampilan
+    // semua tingkat identik dan mata tidak melirik ke timer/nomor trial.
+    const blockScreen = document.getElementById("screen-block");
+    if (blockScreen) blockScreen.classList.toggle("minimal", this.config.minimal_block_screen === true);
+
     // Pastikan papan 3x3 tampil sejak awal blok dimulai
     const isGrid = this.config.stimulus_type === "grid3x3";
     const grid = document.getElementById("grid-3x3");
     const stimulusEl = document.getElementById("stimulus-display");
+    // Mode huruf/angka: papan 3x3 dikeluarkan dari tata letak. Sebelumnya papan hanya
+    // "visibility: hidden" sehingga tetap memakan tempat dan huruf bergeser ke kanan
+    // dari tengah layar.
+    if (grid) grid.style.display = isGrid ? "" : "none";
     if (isGrid) {
       if (grid) grid.classList.remove("hidden");
       if (stimulusEl) stimulusEl.classList.add("hidden");
       this.clearGrid();
     }
 
+    // Jeda awal: tanda "+" sebentar sebelum stimulus pertama, supaya partisipan
+    // tidak kaget ketika huruf langsung muncul begitu hitung mundur mencapai 0.
+    // Penanda "start" blok di atas tetap dicatat di titik yang sama seperti sebelumnya.
+    const leadInMs = Math.max(0, parseInt(this.config.lead_in_ms, 10) || 0);
+
     // Timer durasi blok
-    const totalMs = this.sequence.length * this.config.isi_ms;
+    const totalMs = this.sequence.length * this.config.isi_ms + leadInMs;
     const endTime = Date.now() + totalMs;
     this.timerInterval = setInterval(() => {
       const remaining = Math.max(0, endTime - Date.now());
@@ -95,8 +112,9 @@ class BlockRunner {
     document.addEventListener("keydown", this.keyListener);
 
     // Klik / tap area kotak 3x3 juga dihitung sebagai respons
-    const grid = document.getElementById("grid-3x3");
-    if (grid && this.config.enable_click_response) {
+    // (variabel `grid` sudah dideklarasikan di atas; deklarasi ulang membuat
+    //  seluruh experiment.js gagal dimuat dan mode huruf/angka tidak jalan)
+    if (isGrid && grid && this.config.enable_click_response) {
       grid.classList.add("clickable");
       this.gridCellListener = (e) => {
         e.preventDefault();
@@ -107,15 +125,32 @@ class BlockRunner {
 
     return new Promise((resolve) => {
       this.onComplete = resolve;
-      this.runNextTrial();
+      if (leadInMs > 0) {
+        // Respons selama jeda diabaikan (currentStimulusOnset masih null).
+        if (isGrid) this.clearGrid();
+        else this.showFixation();
+        this.isiTimeout = setTimeout(() => this.runNextTrial(), leadInMs);
+      } else {
+        this.runNextTrial();
+      }
     });
   }
 
   /** Teks tugas untuk footer blok. */
   blockDescription() {
     const isGrid = this.config.stimulus_type === "grid3x3";
-    if (this.blockN === 0) return isGrid ? "kotak target" : "stimulus target";
-    return `${this.blockN} langkah sebelumnya`;
+    const unit = isGrid ? "kotak" : this.config.stimulus_type === "digits" ? "angka" : "huruf";
+    if (this.blockN === 0) return `${unit} target`;
+    return `${unit} ${this.blockN} langkah sebelumnya`;
+  }
+
+  /** Tanda fiksasi "+" di tengah layar (mode huruf/angka saja). */
+  showFixation() {
+    const el = document.getElementById("stimulus-display");
+    if (!el) return;
+    el.textContent = "+";
+    el.classList.add("fixation");
+    el.classList.remove("hidden");
   }
 
   /** Umpan balik visual saat respons tercatat. */
@@ -157,6 +192,7 @@ class BlockRunner {
       if (gridEl) gridEl.classList.add("hidden");
       if (stimulusEl) {
         stimulusEl.textContent = stimulusCode;
+        stimulusEl.classList.remove("fixation");
         stimulusEl.classList.remove("hidden");
       }
     }
@@ -164,7 +200,13 @@ class BlockRunner {
 
   hideStimulus() {
     const stimulusEl = document.getElementById("stimulus-display");
-    if (stimulusEl) stimulusEl.classList.add("hidden");
+    const isGrid = this.config.stimulus_type === "grid3x3";
+    if (!isGrid && this.config.show_fixation && this.currentTrialIdx < this.sequence.length) {
+      this.showFixation();
+    } else if (stimulusEl) {
+      stimulusEl.classList.add("hidden");
+      stimulusEl.classList.remove("fixation");
+    }
     // Matikan kotak yang sedang menyala biru, tetapi papan 3x3 tetap tampil di layar
     this.clearGrid();
   }
@@ -196,6 +238,13 @@ class BlockRunner {
       const correct =
         (trial.isTarget && this.currentResponse !== null) ||
         (!trial.isTarget && this.currentResponse === null);
+
+      this.results.push({
+        is_target: trial.isTarget,
+        response: this.currentResponse,
+        reaction_time_ms: this.currentRtMs,
+        correct: correct,
+      });
 
       if (!this.isPractice) {
         this.logger.logTrial({
@@ -232,6 +281,8 @@ class BlockRunner {
       if (this.gridCellListener) grid.removeEventListener("pointerdown", this.gridCellListener);
     }
     this.hideStimulus();
+    const blockScreen = document.getElementById("screen-block");
+    if (blockScreen) blockScreen.classList.remove("minimal");
 
     if (!this.isPractice) {
       this.logger.logBlockMarker({
@@ -280,7 +331,26 @@ function playBeep(frequency = 800, duration = 150, volume = 0.3) {
   }
 }
 
-function runCountdown(seconds = 3) {
+/**
+ * @param {number} seconds
+ * @param {{showMarker?: boolean, targetStim?: string|null, label?: string}} opts
+ *   showMarker : tampilkan pengingat tombol Marker Mind Monitor (blok sebenarnya saja,
+ *                supaya tidak ada marker nyasar saat latihan)
+ *   targetStim : huruf sasaran 0-back. Ditampilkan HANYA di layar hitung mundur,
+ *                tidak selama blok, supaya tampilan blok sama di semua tingkat.
+ */
+function runCountdown(seconds = 3, opts = {}) {
+  const { showMarker = true, targetStim = null, label = "Blok akan mulai dalam..." } = opts;
+  const markerEl = document.getElementById("marker-info");
+  if (markerEl) markerEl.style.display = showMarker ? "block" : "none";
+  const targetBox = document.getElementById("countdown-target");
+  if (targetBox) {
+    targetBox.style.display = targetStim ? "block" : "none";
+    document.getElementById("countdown-target-letter").textContent = targetStim || "";
+  }
+  const labelEl = document.getElementById("countdown-label");
+  if (labelEl) labelEl.textContent = label;
+
   return new Promise((resolve) => {
     const display = document.getElementById("countdown-display");
     let count = seconds;
@@ -313,116 +383,49 @@ function buildInstructions(n, targetStim = null) {
   container.innerHTML = "";
   tipsContainer.innerHTML = "";
 
-  if (isGrid) {
-    // ---------- Instruksi mode kotak 3x3 ----------
-    if (n === 0) {
+  // Tampilan minimal: satu kartu berisi penjelasan singkat, pratinjau target (0-back),
+  // lalu satu baris tips di bawah garis pemisah.
+  const unit = isGrid ? "kotak" : "huruf";
+  let tip;
+
+  if (n === 0) {
+    let targetHtml;
+    if (isGrid) {
       const targetCell = parseCell(targetStim) || { row: 2, col: 2 };
-      container.innerHTML = `
-        <p>Anda akan melihat <strong>satu kotak menyala</strong> di dalam kotak 3×3.</p>
-        <p>Tekan <strong>SPASI</strong> setiap kali kotak yang menyala adalah <strong>kotak target</strong> di bawah ini:</p>
+      targetHtml = `
         <div class="target-grid-wrapper">
           <div class="grid-3x3 grid-preview">
             ${buildGridPreviewHtml(targetCell.row, targetCell.col)}
           </div>
-        </div>
-        <p>Kalau kotak lain yang menyala, <strong>jangan tekan apa-apa</strong>, tunggu kotak berikutnya.</p>
-      `;
-      document.getElementById("n-back-word").textContent = "adalah kotak target";
+        </div>`;
+      tip = `Fokus pada kotak target, tekan <strong>SPASI</strong> dengan cepat, dan abaikan kotak lainnya.`;
     } else {
-      container.innerHTML = `
-        <p>Anda akan melihat <strong>satu kotak menyala</strong> di dalam kotak 3×3, posisinya berganti-ganti.</p>
-        <p>Tugas Anda: bandingkan posisi kotak sekarang dengan posisi <strong>${n} langkah sebelumnya</strong>.</p>
-        <p>Kalau posisinya <strong>sama</strong> dengan ${n} langkah lalu, tekan <strong>SPASI</strong>.</p>
-        <p>Kalau berbeda, jangan tekan apa-apa dan tunggu kotak berikutnya.</p>
-      `;
-      document.getElementById("n-back-word").textContent = `${n} langkah`;
+      const letter = targetStim || "B";
+      targetHtml = `<div class="target-letter-display">${letter}</div>`;
+      tip = `Fokus pada huruf target "${letter}", tekan <strong>SPASI</strong> dengan cepat, dan abaikan huruf lainnya.`;
     }
-
-    const tipsMap = {
-      1: [
-        "Cukup mengingat satu posisi terakhir",
-        'Tanyakan: "apakah posisi ini sama dengan kotak sebelumnya?"',
-        "Kalau sama, tekan SPASI secepat mungkin",
-        "Kalau ragu, jangan tekan dulu — tunggu kotak berikutnya",
-      ],
-      2: [
-        "Simpan dua posisi terakhir, lalu perbarui terus",
-        'Tanyakan: "apakah posisi ini sama dengan dua kotak lalu?"',
-        "Jangan panik kalau kelewatan, fokus ke kotak berikutnya",
-        "Butuh konsentrasi lebih tinggi daripada 1 langkah",
-      ],
-      3: [
-        "Simpan tiga posisi terakhir dan perbarui terus-menerus",
-        'Tanyakan: "apakah posisi ini sama dengan tiga kotak lalu?"',
-        "Tingkat tersulit, kelewatan itu normal",
-        "Utamakan ketepatan daripada kecepatan",
-      ],
-    };
-    const tips = tipsMap[n] || [
-      `Ingat ${n} posisi terakhir, lalu bandingkan dengan posisi yang baru muncul`,
-      "Jangan menebak kalau tidak yakin",
-      "Kalau kelewatan, jangan mengulang manual — lanjut ke kotak berikutnya",
-      "Utamakan ketepatan daripada kecepatan",
-    ];
-    tipsContainer.innerHTML = `
-      <h3>Tips ${n}-back (mode kotak 3×3)</h3>
-      <ul>${tips.map((t) => `<li>${t}</li>`).join("")}</ul>
-      <p class="note">Tidak ada posisi yang muncul ulang tanpa alasan: kalau posisinya sama dengan ${n} langkah lalu, itu memang <strong>harus</strong> ditekan SPASI.</p>
+    container.innerHTML = `
+      <p>${isGrid ? "Anda akan melihat satu kotak menyala di dalam kotak 3×3." : "Anda akan melihat huruf muncul satu per satu di layar."}</p>
+      <p>Tekan <strong>SPASI</strong> jika ${isGrid ? "kotak target menyala" : "muncul huruf target"}:</p>
+      ${targetHtml}
+      <p>Jika ${unit} lain ${isGrid ? "yang menyala" : "muncul"}, jangan tekan apa-apa dan tunggu ${unit} berikutnya.</p>
     `;
   } else {
-    // ---------- Instruksi lama (huruf/angka), tetap dipertahankan ----------
-    if (n === 0) {
-      container.innerHTML = `
-        <p>Anda akan melihat huruf muncul satu per satu di layar.</p>
-        <p>Tekan <strong>SPASI</strong> setiap kali huruf yang muncul adalah <strong>huruf target</strong> berikut:</p>
-        <div class="target-letter-display">${targetStim || "B"}</div>
-        <p>Jika huruf lain muncul, <strong>jangan tekan apa-apa</strong> dan tunggu huruf berikutnya.</p>
-      `;
-      document.getElementById("n-back-word").textContent = "adalah huruf target";
-    } else {
-      container.innerHTML = `
-        <p>Anda akan melihat huruf muncul satu per satu di layar.</p>
-        <p>Tugas Anda: bandingkan huruf sekarang dengan huruf <strong>${n} langkah sebelumnya</strong>.</p>
-        <p>Jika huruf sekarang <strong>sama</strong> dengan yang muncul ${n} langkah sebelumnya, tekan <strong>SPASI</strong>.</p>
-        <p>Jika berbeda, jangan tekan apa-apa dan tunggu huruf berikutnya.</p>
-      `;
-      document.getElementById("n-back-word").textContent = `${n} langkah`;
-    }
-
-    const tipsMap = {
-      0: [
-        "Fokus hanya pada huruf target yang ditampilkan di atas",
-        "Jangan pedulikan huruf-huruf lain yang bukan target",
-        "Tekan SPASI segera begitu melihat huruf target",
-        "Bangun ritme: lihat, kenali, respon",
-      ],
-      1: [
-        "Hanya ingat satu huruf terakhir",
-        'Tanyakan: "Apakah huruf ini sama dengan huruf sebelumnya?"',
-        "Bangun ritme stabil: amati, bandingkan, respon",
-        "Mode ringan untuk melatih fokus",
-      ],
-      2: [
-        "Ingat dua huruf terakhir dan update terus-menerus",
-        'Tanyakan: "Apakah huruf ini sama dengan huruf 2 langkah lalu?"',
-        "Jangan panik kalau miss, fokus pada ritme berikutnya",
-        "Butuh konsentrasi lebih tinggi dari 1-back",
-      ],
-      3: [
-        "Ingat tiga huruf terakhir dan update terus-menerus",
-        'Tanyakan: "Apakah huruf ini sama dengan huruf 3 langkah lalu?"',
-        "Tingkat tersulit, miss adalah hal normal",
-        "Fokus pada akurasi, bukan kecepatan",
-      ],
-    };
-    const tips = tipsMap[n] || tipsMap[2];
-    const title = n === 0 ? "0-Back Tips" : `${n}-Back Quick Tips`;
-    tipsContainer.innerHTML = `
-      <h3>${title}</h3>
-      <ul>${tips.map((t) => `<li>${t}</li>`).join("")}</ul>
+    const what = isGrid ? "posisi kotak" : "huruf";
+    container.innerHTML = `
+      <p>${isGrid ? "Anda akan melihat satu kotak menyala di dalam kotak 3×3, posisinya berganti-ganti." : "Anda akan melihat huruf muncul satu per satu di layar."}</p>
+      <p>Tekan <strong>SPASI</strong> jika ${what} sekarang sama dengan ${what} <strong>${n} langkah sebelumnya</strong>.</p>
+      <p>Jika berbeda, jangan tekan apa-apa dan tunggu ${unit} berikutnya.</p>
     `;
+    const tipsMap = {
+      1: `Cukup ingat satu ${unit} terakhir, lalu bandingkan dengan ${unit} yang baru muncul.`,
+      2: `Ingat dua ${unit} terakhir dan perbarui terus; kalau kelewatan, fokus ke ${unit} berikutnya.`,
+      3: `Ingat tiga ${unit} terakhir; kelewatan itu normal, utamakan ketepatan daripada kecepatan.`,
+    };
+    tip = tipsMap[n] || `Ingat ${n} ${unit} terakhir dan utamakan ketepatan daripada kecepatan.`;
   }
 
+  tipsContainer.innerHTML = `Tips: ${tip}`;
   document.getElementById("current-n-display").textContent = n;
 }
 
