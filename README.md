@@ -135,7 +135,9 @@ Vercel akan re-deploy otomatis.
 | `hide_block_feedback` | boolean | true | Skor per blok tidak diperlihatkan ke partisipan (tetap ada di layar akhir dan berkas) |
 | `minimal_block_screen` | boolean | true | Saat blok, sembunyikan timer, nomor trial, dan teks bawah |
 | `lead_in_ms` | number | 1000 | Jeda tanda `+` sesudah hitung mundur, sebelum stimulus pertama (latihan & blok). `0` = stimulus langsung muncul. Penanda `start` blok tetap dicatat sesaat setelah hitung mundur |
-| `autosave_per_block` | boolean | true | Simpan satu CSV setiap blok selesai ke `Data/<nama>_<DD-MM-YYYY>/` di folder yang dipilih di layar setup (Chrome/Edge). Kolom CSV sama dengan CSV gabungan |
+| `motion_videos` | boolean | true | Video instruksi bersuara `motion/instruksi-<n>back-sound.mp4`, berulang, tidak layar penuh (kalau browser menolak suara, diputar tanpa suara): (1) di layar instruksi sebelum latihan 0-back, (2) di bawah timer istirahat antarblok untuk tingkat blok berikutnya (butuh `rest_seconds` > 0). Berhenti otomatis saat pindah layar |
+| `show_practice_feedback` | boolean | true | Setelah tiap latihan, tampilkan skor (target ditekan, terlewat, salah tekan) dengan tombol Ulangi/Lanjut. Data latihan tetap **tidak** masuk CSV/JSON |
+| `autosave_per_block` | boolean | true | Simpan satu CSV setiap blok selesai ke `Data/<nama>_<DD-MM-YYYY>/` di folder yang dipilih di layar setup (Chrome/Edge). Begitu sesi selesai, CSV gabungan, JSON, laporan, dan checklist juga otomatis tersimpan ke folder yang sama. Kolom CSV sama dengan CSV gabungan |
 
 Opsi tambahan di atas default-nya mati (`false`/`0`/`"per_block"`), jadi preset lama berperilaku sama seperti sebelumnya. Semuanya juga bisa diubah di kartu **4. Opsi Tambahan** di layar setup.
 

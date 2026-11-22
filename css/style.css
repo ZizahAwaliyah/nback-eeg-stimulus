@@ -195,6 +195,23 @@ input:focus, select:focus {
 }
 .instruction-footer .progress-info { margin: 0; font-size: 1.1rem; }
 .instruction-footer .btn-primary { margin-top: 0; border-radius: 10px; padding: 14px 32px; font-size: 1.1rem; }
+.instruction-footer .btn-secondary { margin-top: 0; border-radius: 10px; padding: 14px 24px; font-size: 1.05rem; }
+
+/* Skor latihan (show_practice_feedback) */
+.practice-score {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.ps-item {
+  text-align: center;
+  padding: 18px 10px;
+  border-radius: 10px;
+  background: var(--bg);
+}
+.ps-value { font-size: 2.6rem; font-weight: 700; line-height: 1.1; color: var(--text); }
+.ps-label { font-size: 0.95rem; color: var(--text-muted); margin-top: 6px; }
+@media (max-width: 560px) { .practice-score { grid-template-columns: minmax(0, 1fr); } }
 
 /* Target letter display untuk 0-back */
 .target-letter-display {
@@ -555,6 +572,17 @@ input:focus, select:focus {
   color: var(--text);
 }
 .rest-note { color: var(--text-muted); font-size: 0.95rem; }
+/* Video instruksi motion graph: menempel di halaman, tidak bisa dibuat layar penuh */
+.motion-video {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  margin: 14px auto 16px;
+  border-radius: 10px;
+  background: #000;
+  pointer-events: none; /* tanpa klik/klik-ganda → tidak masuk layar penuh */
+}
+#instruction-video { margin: 0 auto 20px; }
 .rest-banner.done .rest-timer { font-size: 2.5rem; color: var(--success); }
 
 .phase-label {

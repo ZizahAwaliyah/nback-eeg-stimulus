@@ -27,7 +27,9 @@ const DEFAULT_CONFIG = {
   hide_block_feedback: false,      // skor per blok disembunyikan dari partisipan
   minimal_block_screen: false,     // sembunyikan header (timer, nomor trial) & footer saat blok
   lead_in_ms: 0,                   // jeda "+" sesudah hitung mundur, sebelum stimulus pertama (0 = langsung)
-  autosave_per_block: false,       // simpan CSV tiap blok selesai ke Data/<nama>_<tanggal>/ (Chrome/Edge)
+  autosave_per_block: false,       // simpan CSV tiap blok + berkas gabungan di akhir sesi ke Data/<nama>_<tanggal>/ (Chrome/Edge)
+  show_practice_feedback: false,   // tampilkan skor tiap latihan (+ tombol ulangi); data latihan tetap tidak dicatat
+  motion_videos: false,            // video bersuara motion/instruksi-<n>back-sound.mp4: sebelum latihan 0-back & di bawah timer istirahat
 };
 
 // Pool stimulus per jenis. Untuk grid3x3: 9 sel, kode "r{baris}c{kolom}".
@@ -49,8 +51,12 @@ const AVAILABLE_PRESETS = [
   { id: "mutiah-groundtruth", name: "Mutiah + Ground Truth (0/1/2/3-back, 4 menit, kotak 3x3)", file: "presets/mutiah_0123.json" },
   { id: "azizah", name: "Azizah (0/1/2-back, 4 menit)", file: "presets/azizah.json" },
   { id: "irgi", name: "Irgi (0/1/2/3-back, 3 menit, huruf, layar gelap)", file: "presets/irgi.json" },
+  { id: "desember-semhas", name: "Desember Semhas (0/1/2/3-back, 4 menit, huruf, semua opsi aktif)", file: "presets/desember-semhas.json" },
   { id: "template", name: "Template Kosong (edit sesuai kebutuhan)", file: "presets/template.json" },
 ];
+
+// Preset yang otomatis terpilih saat halaman dibuka
+const DEFAULT_PRESET_ID = "desember-semhas";
 
 async function loadPreset(presetFile) {
   try {
@@ -132,6 +138,8 @@ function applyConfigToForm(config) {
   document.getElementById("minimal-block-screen").checked = config.minimal_block_screen === true;
   document.getElementById("lead-in-ms").value = config.lead_in_ms ?? 0;
   document.getElementById("autosave-per-block").checked = config.autosave_per_block === true;
+  document.getElementById("show-practice-feedback").checked = config.show_practice_feedback === true;
+  document.getElementById("motion-videos").checked = config.motion_videos === true;
 
   refreshStimulusTypeUI();
 }
@@ -166,6 +174,8 @@ function readConfigFromForm() {
     minimal_block_screen: document.getElementById("minimal-block-screen").checked,
     lead_in_ms: Math.max(0, parseInt(document.getElementById("lead-in-ms").value, 10) || 0),
     autosave_per_block: document.getElementById("autosave-per-block").checked,
+    show_practice_feedback: document.getElementById("show-practice-feedback").checked,
+    motion_videos: document.getElementById("motion-videos").checked,
   };
 }
 

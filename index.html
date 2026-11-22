@@ -114,6 +114,10 @@
             <input type="checkbox" id="enable-practice" checked>
             <span>Aktifkan latihan (data latihan tidak dicatat)</span>
           </label>
+          <label class="toggle">
+            <input type="checkbox" id="show-practice-feedback">
+            <span>Tampilkan skor setelah tiap latihan, dengan tombol ulangi (skor tidak dicatat)</span>
+          </label>
           <div class="grid-3 options-grid">
             <label>
               Trial latihan per tingkat (0 = sepanjang blok):
@@ -131,6 +135,10 @@
               <input type="number" id="rest-seconds" value="0" min="0" max="900" step="10">
             </label>
           </div>
+          <label class="toggle">
+            <input type="checkbox" id="motion-videos">
+            <span>Putar video instruksi bersuara (<code>motion/instruksi-Nback-sound.mp4</code>) sebelum latihan 0-back dan saat istirahat</span>
+          </label>
         </details>
 
         <details class="dash-group" open>
@@ -163,7 +171,7 @@
           <summary>Penyimpanan data</summary>
           <label class="toggle">
             <input type="checkbox" id="autosave-per-block">
-            <span>Simpan otomatis satu CSV setiap blok selesai (Chrome/Edge)</span>
+            <span>Simpan otomatis: satu CSV setiap blok selesai, lalu CSV gabungan + JSON + laporan di akhir sesi (Chrome/Edge)</span>
           </label>
           <div id="autosave-folder-row" class="folder-row" style="display:none">
             <button type="button" id="btn-pick-data-root" class="btn-secondary btn-small">Pilih lokasi folder Data…</button>
@@ -243,10 +251,14 @@
       <div id="rest-banner" class="rest-banner" style="display:none">
         <p class="rest-title">Istirahat</p>
         <div id="rest-timer" class="rest-timer">02:00</div>
+        <!-- motion_videos: motion/instruksi-<n>back-sound.mp4 untuk blok berikutnya, bersuara & berulang -->
+        <video id="rest-video" class="motion-video" loop playsinline disablepictureinpicture preload="auto" style="display:none"></video>
         <p class="rest-note">Tetap duduk santai dan jangan melepas headband.</p>
       </div>
       <p id="practice-phase-label" class="phase-label" style="display:none"></p>
       <h1>Instruksi Tugas</h1>
+      <!-- motion_videos: video instruksi 0-back sebelum latihan 0-back (bukan layar penuh) -->
+      <video id="instruction-video" class="motion-video" loop playsinline disablepictureinpicture preload="auto" style="display:none"></video>
       <div class="card instruction-card">
         <h2>Cara Mengerjakan Tugas <span id="current-n-display"></span>-back</h2>
         <div id="instructions-body"></div>
@@ -278,6 +290,38 @@
       <div class="btn-group">
         <button id="btn-start-practice" class="btn-primary">Mulai Latihan →</button>
         <button id="btn-skip-practice" class="btn-secondary">Lewati Latihan</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- LAYAR 2b-2: HASIL LATIHAN (show_practice_feedback)                -->
+  <!-- Skor dihitung dari runner.results, TIDAK dari logger.             -->
+  <!-- ================================================================ -->
+  <section id="screen-practice-result" class="screen">
+    <div class="container">
+      <p class="phase-label">LATIHAN · DATA TIDAK DICATAT</p>
+      <h1>Hasil Latihan <span id="practice-result-n"></span>-back</h1>
+      <div class="card instruction-card">
+        <div class="practice-score">
+          <div class="ps-item">
+            <div class="ps-value" id="ps-hit">-</div>
+            <div class="ps-label">Target yang berhasil ditekan</div>
+          </div>
+          <div class="ps-item">
+            <div class="ps-value" id="ps-miss">-</div>
+            <div class="ps-label">Target terlewat</div>
+          </div>
+          <div class="ps-item">
+            <div class="ps-value" id="ps-fa">-</div>
+            <div class="ps-label">Salah tekan (bukan target)</div>
+          </div>
+        </div>
+        <p id="practice-result-note" class="instruction-tip"></p>
+      </div>
+      <div class="instruction-footer">
+        <button id="btn-practice-retry" class="btn-secondary">↻ Ulangi Latihan Ini</button>
+        <button id="btn-practice-result-continue" class="btn-primary">Lanjut →</button>
       </div>
     </div>
   </section>

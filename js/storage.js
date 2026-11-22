@@ -141,7 +141,7 @@ async function autosaveBlock(blockIndex) {
   if (!currentConfig?.autosave_per_block || !participantDirHandle) return;
   const n = blockOrder[blockIndex];
   const file = blockCsvFilename(blockIndex, n);
-  const entry = { label: `Blok ${blockIndex + 1} · ${n}-back`, file, ok: false, error: null };
+  const entry = { kind: "block", label: `Blok ${blockIndex + 1} · ${n}-back`, file, ok: false, error: null };
   try {
     await writeFileToFolder(participantDirHandle, file, currentLogger.toCSV(currentLogger.getBlockTrials(blockIndex)));
     entry.ok = true;

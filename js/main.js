@@ -35,6 +35,11 @@ let sessionVisitNumber = 1;
 // ------------ Screen Navigation ------------
 
 function showScreen(screenId) {
+  // Video (mis. video istirahat) di layar yang ditinggalkan dihentikan, supaya tidak
+  // tetap berjalan di belakang layar blok.
+  document.querySelectorAll(".screen video").forEach((v) => {
+    if (!v.closest(`#${screenId}`)) v.pause();
+  });
   document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active"));
   const target = document.getElementById(screenId);
   if (target) target.classList.add("active");
@@ -95,6 +100,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-skip-practice").addEventListener("click", handleSkipPractice);
   document.getElementById("btn-start-practice").addEventListener("click", handleStartPractice);
   document.getElementById("btn-continue-to-real-block").addEventListener("click", handleContinueFromPracticeDone);
+  document.getElementById("btn-practice-retry").addEventListener("click", handleStartPractice);
+  document.getElementById("btn-practice-result-continue").addEventListener("click", advanceAfterPractice);
   document.getElementById("btn-fatigue-continue").addEventListener("click", handleFatigueContinue);
   document.getElementById("btn-continue-after-response-check").addEventListener("click", handleContinueAfterResponseCheck);
   document.getElementById("btn-continue-from-block-summary").addEventListener("click", handleContinueFromBlockSummary);
@@ -122,11 +129,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Otomatis pilih dan muat preset Mutiah jika tersedia
+  // Otomatis pilih dan muat preset default (DEFAULT_PRESET_ID di config.js),
+  // atau preset pertama di daftar kalau id itu tidak ada
   const presetSelect = document.getElementById("preset-select");
   if (presetSelect && AVAILABLE_PRESETS.length > 0) {
-    presetSelect.value = AVAILABLE_PRESETS[0].file;
-    loadPreset(AVAILABLE_PRESETS[0].file).then((config) => {
+    const defaultPreset =
+      AVAILABLE_PRESETS.find((p) => p.id === DEFAULT_PRESET_ID) || AVAILABLE_PRESETS[0];
+    presetSelect.value = defaultPreset.file;
+    loadPreset(defaultPreset.file).then((config) => {
       applyConfigToForm(config);
       updateSetupSummary();
     });
@@ -273,6 +283,12 @@ function showInstructionsForCurrentBlock(withRest = false) {
     `Blok <span id="block-current">${currentBlockIdx + 1}</span> dari ` +
     `<span id="block-total">${blockOrder.length}</span>`;
 
+  // Latihan per blok (tepat sebelum blok): video 0-back juga tampil sebelum latihan 0-back
+  const before0backPractice =
+    n === 0 && !withRest && practiceEnabled() && currentConfig.practice_placement !== "before_session";
+  if (currentConfig.motion_videos && before0backPractice) playMotionVideo("instruction-video", 0);
+  else stopMotionVideo("instruction-video");
+
   showScreen("screen-instructions");
   if (withRest && currentConfig.rest_seconds > 0) startRest();
   else stopRest(false);
@@ -287,6 +303,9 @@ function showPracticeInstructions(idx) {
   document.querySelector("#screen-instructions .progress-info").textContent =
     `Latihan ${idx + 1} dari ${blockOrder.length}`;
   stopRest(false);
+  // Video instruksi 0-back sebelum latihan 0-back
+  if (currentConfig.motion_videos && n === 0) playMotionVideo("instruction-video", 0);
+  else stopMotionVideo("instruction-video");
   showScreen("screen-instructions");
 }
 
@@ -331,6 +350,8 @@ function startRest() {
   banner.style.display = "block";
   banner.classList.remove("done");
   btn.disabled = true;
+  if (currentConfig.motion_videos) playMotionVideo("rest-video", blockOrder[currentBlockIdx]);
+  else stopMotionVideo("rest-video");
 
   const tick = () => {
     const remaining = Math.max(0, totalMs - (performance.now() - startPerf));
@@ -353,11 +374,44 @@ function stopRest(finished) {
   if (btn) btn.disabled = false;
   if (!banner) return;
   if (finished) {
+    // Video tetap berulang sampai peneliti menekan Lanjut
     banner.classList.add("done");
     document.getElementById("rest-timer").textContent = "Selesai";
   } else {
     banner.style.display = "none";
+    stopMotionVideo("rest-video");
   }
+}
+
+/** Putar motion/instruksi-<n>back-sound.mp4 di elemen <video> tertentu: bersuara, berulang, tidak layar penuh. */
+function playMotionVideo(videoId, n) {
+  const video = document.getElementById(videoId);
+  if (!video) return;
+  const file = `motion/instruksi-${n}back-sound.mp4`;
+  video.onerror = () => {
+    console.warn(`Video instruksi tidak ditemukan: ${file}`);
+    video.style.display = "none";
+  };
+  video.muted = false;
+  video.src = file;
+  video.style.display = "block";
+  video.currentTime = 0;
+  video.play().catch((err) => {
+    // Browser menolak memutar otomatis dengan suara → tetap putar tanpa suara
+    console.warn("Video bersuara ditolak browser, diputar tanpa suara:", err);
+    video.muted = true;
+    video.play().catch((e) => console.warn("Video instruksi tidak bisa diputar:", e));
+  });
+}
+
+function stopMotionVideo(videoId) {
+  const video = document.getElementById(videoId);
+  if (!video) return;
+  video.onerror = null;
+  video.pause();
+  video.style.display = "none";
+  video.removeAttribute("src");
+  video.load(); // lepaskan berkas video dari memori
 }
 
 // ------------ Practice (jumlah trial sama dengan blok sebenarnya) ------------
@@ -413,6 +467,34 @@ async function handleStartPractice() {
 
   exitFullscreen();
 
+  if (currentConfig.show_practice_feedback) {
+    // Skor dari runner.results (memori), bukan dari logger: latihan tetap tidak tercatat.
+    showPracticeResult(n, runner.results, blockIdx);
+    return;
+  }
+  advanceAfterPractice();
+}
+
+/** Layar skor latihan. "Ulangi" menjalankan latihan tingkat yang sama sekali lagi. */
+function showPracticeResult(n, results, blockIdx) {
+  const s = summarizeTrials(results);
+  document.getElementById("practice-result-n").textContent = n;
+  document.getElementById("ps-hit").textContent = `${s.hits}/${s.targets}`;
+  document.getElementById("ps-miss").textContent = s.misses;
+  document.getElementById("ps-fa").textContent = s.false_alarms;
+
+  const perfect = s.misses === 0 && s.false_alarms === 0;
+  document.getElementById("practice-result-note").innerHTML = perfect
+    ? "Semua jawaban tepat. Anda sudah memahami tugas ini."
+    : n === 0
+      ? `Ingat: tekan <strong>SPASI</strong> hanya saat huruf sasaran <strong>${escapeHtml(targetStimByBlock[blockIdx] ?? "")}</strong> muncul. Kalau belum yakin, latihan bisa diulang.`
+      : `Ingat: tekan <strong>SPASI</strong> hanya jika huruf sama dengan huruf <strong>${n} langkah sebelumnya</strong>. Kalau belum yakin, latihan bisa diulang.`;
+
+  showScreen("screen-practice-result");
+}
+
+/** Sesudah latihan (dan sesudah layar skor, kalau ada): ke latihan/blok berikutnya. */
+function advanceAfterPractice() {
   if (practiceQueueIdx !== null) {
     practiceQueueIdx++;
     if (practiceQueueIdx < blockOrder.length) {
@@ -631,6 +713,8 @@ function showFinishedScreen() {
   renderExportPanel();
   document.getElementById("btn-finish-session").classList.add("btn-pulse");
   showScreen("screen-finished");
+  // Berkas gabungan langsung disimpan otomatis; status tampil di panel ekspor
+  autosaveSessionFiles().then(renderExportPanel);
 }
 
 // ================================================================
@@ -741,11 +825,7 @@ async function finishSession() {
     if (participantDirHandle) {
       folder = participantDirHandle;
       folderLabel = participantFolderLabel;
-      names = {
-        csv: `${sessionFileBase}_semua-blok.csv`,
-        json: `${sessionFileBase}.json`,
-        txt: `${sessionFileBase}_laporan.txt`,
-      };
+      names = participantSessionFileNames();
     } else {
       const rootHandle = await window.showDirectoryPicker({ mode: "readwrite" });
       folder = await rootHandle.getDirectoryHandle(folderName, { create: true });
@@ -757,35 +837,7 @@ async function finishSession() {
       };
     }
 
-    await writeFileToFolder(folder, names.csv, currentLogger.toCSV());
-    await writeFileToFolder(folder, names.json, currentLogger.toJSON());
-    await writeFileToFolder(folder, names.txt, currentLogger.buildReportText());
-
-    const blockFiles = autosaveLog.filter((e) => e.ok).map((e) => `  - ${e.file}`);
-    const checklist = [
-      `Folder dokumentasi : ${folderLabel}`,
-      `Dibuat pada        : ${localTimestamp()}`,
-      `Nama partisipan    : ${currentConfig?.participant_name || "-"}`,
-      `Peneliti           : ${currentConfig?.researcher || "-"}`,
-      `Sesi / kondisi     : ${currentConfig?.session || "-"} / ${currentConfig?.condition || "-"}`,
-      `Jenis stimulus     : ${STIMULUS_TYPE_LABELS[currentConfig?.stimulus_type] || "-"}`,
-      `Kunjungan ke-      : P${sessionVisitNumber}`,
-      "",
-      "Berkas yang SUDAH tersimpan otomatis di folder ini:",
-      ...blockFiles,
-      `  - ${names.csv}`,
-      `  - ${names.json}`,
-      `  - ${names.txt}`,
-      "",
-      "Berkas yang masih harus ditambahkan peneliti:",
-      ...documentationList.map(
-        (d) => `  - ${d.jenis} (dari: ${d.dari})` + (d.dari.startsWith("http") ? ` -> ${d.dari}` : "")
-      ),
-      "",
-      "Setelah semua berkas lengkap, kompres folder ini (zip) untuk diarsipkan.",
-    ].join("\n");
-
-    await writeFileToFolder(folder, "CHECKLIST_DOKUMENTASI.txt", checklist);
+    await writeSessionFiles(folder, folderLabel, names);
     setStatus(`Berkas sesi sudah tersimpan di folder "${folderLabel}".`);
   } catch (err) {
     if (err && err.name === "AbortError") {
@@ -798,5 +850,72 @@ async function finishSession() {
     setStatus(`Gagal menyimpan otomatis: ${err.message}. Unduh manual lewat tombol Download.`);
   }
   showScreen("screen-documentation");
+}
+
+/** Nama berkas gabungan di folder responden Data/<nama>_<tanggal>/. */
+function participantSessionFileNames() {
+  return {
+    csv: `${sessionFileBase}_semua-blok.csv`,
+    json: `${sessionFileBase}.json`,
+    txt: `${sessionFileBase}_laporan.txt`,
+  };
+}
+
+/** Tulis CSV gabungan, JSON, laporan, dan checklist ke satu folder. */
+async function writeSessionFiles(folder, folderLabel, names) {
+  await writeFileToFolder(folder, names.csv, currentLogger.toCSV());
+  await writeFileToFolder(folder, names.json, currentLogger.toJSON());
+  await writeFileToFolder(folder, names.txt, currentLogger.buildReportText());
+
+  const blockFiles = autosaveLog.filter((e) => e.ok && e.kind === "block").map((e) => `  - ${e.file}`);
+  const checklist = [
+    `Folder dokumentasi : ${folderLabel}`,
+    `Dibuat pada        : ${localTimestamp()}`,
+    `Nama partisipan    : ${currentConfig?.participant_name || "-"}`,
+    `Peneliti           : ${currentConfig?.researcher || "-"}`,
+    `Sesi / kondisi     : ${currentConfig?.session || "-"} / ${currentConfig?.condition || "-"}`,
+    `Jenis stimulus     : ${STIMULUS_TYPE_LABELS[currentConfig?.stimulus_type] || "-"}`,
+    `Kunjungan ke-      : P${sessionVisitNumber}`,
+    "",
+    "Berkas yang SUDAH tersimpan otomatis di folder ini:",
+    ...blockFiles,
+    `  - ${names.csv}`,
+    `  - ${names.json}`,
+    `  - ${names.txt}`,
+    "",
+    "Berkas yang masih harus ditambahkan peneliti:",
+    ...documentationList.map(
+      (d) => `  - ${d.jenis} (dari: ${d.dari})` + (d.dari.startsWith("http") ? ` -> ${d.dari}` : "")
+    ),
+    "",
+    "Setelah semua berkas lengkap, kompres folder ini (zip) untuk diarsipkan.",
+  ].join("\n");
+
+  await writeFileToFolder(folder, "CHECKLIST_DOKUMENTASI.txt", checklist);
+}
+
+/**
+ * Simpan otomatis di akhir sesi (autosave_per_block aktif): CSV gabungan, JSON,
+ * laporan, dan checklist langsung ke folder responden, tanpa menekan tombol.
+ */
+async function autosaveSessionFiles() {
+  if (!currentConfig?.autosave_per_block || !participantDirHandle) return;
+  if (!currentLogger.getAllTrials().length) return;
+  const names = participantSessionFileNames();
+  const entry = {
+    kind: "session",
+    label: "Berkas gabungan (CSV semua blok, JSON, laporan)",
+    file: `${names.csv}, ${names.json}, ${names.txt}`,
+    ok: false,
+    error: null,
+  };
+  try {
+    await writeSessionFiles(participantDirHandle, participantFolderLabel, names);
+    entry.ok = true;
+  } catch (err) {
+    entry.error = err.message;
+    console.error("Simpan otomatis akhir sesi gagal:", err);
+  }
+  autosaveLog.push(entry);
 }
 // writeFileToFolder() ada di storage.js

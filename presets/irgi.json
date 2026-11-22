@@ -18,5 +18,7 @@
   "minimal_block_screen": true,
   "lead_in_ms": 1000,
   "autosave_per_block": true,
+  "show_practice_feedback": true,
+  "motion_videos": true,
   "enable_click_response": false
 }

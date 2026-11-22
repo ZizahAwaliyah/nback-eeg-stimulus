@@ -33,6 +33,9 @@ class BlockRunner {
     this.keyListener = null;
     this.gridCellListener = null;
     this.onComplete = null;
+    // Hasil tiap trial di memori runner ini saja (dipakai untuk skor latihan).
+    // Latihan TIDAK pernah dikirim ke logger, jadi tidak masuk CSV/JSON.
+    this.results = [];
   }
 
   async start() {
@@ -235,6 +238,13 @@ class BlockRunner {
       const correct =
         (trial.isTarget && this.currentResponse !== null) ||
         (!trial.isTarget && this.currentResponse === null);
+
+      this.results.push({
+        is_target: trial.isTarget,
+        response: this.currentResponse,
+        reaction_time_ms: this.currentRtMs,
+        correct: correct,
+      });
 
       if (!this.isPractice) {
         this.logger.logTrial({
